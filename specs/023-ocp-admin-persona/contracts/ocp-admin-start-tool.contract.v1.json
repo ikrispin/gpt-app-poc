@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OCP Admin Start Tool Contract",
+  "description": "Defines expected response shape for the start_ocp_admin tool",
+  "version": "1.0.0",
+  "feature": "023-ocp-admin-persona",
+  "contracts": {
+    "start_ocp_admin_response_shape": {
+      "description": "start_ocp_admin MUST return structured content with persona, skill_uri, available_skills, and prerequisites",
+      "tool": "start_ocp_admin",
+      "input": {},
+      "assertions": [
+        {
+          "field": "structuredContent.persona",
+          "equals": "ocp-admin"
+        },
+        {
+          "field": "structuredContent.skill_uri",
+          "equals": "skill://ocp-admin/SKILL.md"
+        },
+        {
+          "field": "structuredContent.available_skills",
+          "contains": "cluster-inventory"
+        },
+        {
+          "field": "structuredContent.prerequisites.env_vars",
+          "contains": "OFFLINE_TOKEN"
+        },
+        {
+          "field": "structuredContent.prerequisites.mcp_servers",
+          "contains": "openshift-self-managed"
+        },
+        {
+          "field": "structuredContent.prerequisites.mcp_servers",
+          "contains": "openshift-ocm-managed"
+        }
+      ]
+    },
+    "start_ocp_admin_has_text_content": {
+      "description": "start_ocp_admin MUST include text content for non-UI hosts",
+      "tool": "start_ocp_admin",
+      "input": {},
+      "assertions": [
+        {
+          "field": "content[0].type",
+          "equals": "text"
+        },
+        {
+          "field": "content[0].text",
+          "contains": "skill://ocp-admin/SKILL.md"
+        }
+      ]
+    }
+  }
+}

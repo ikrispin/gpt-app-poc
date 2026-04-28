@@ -768,6 +768,27 @@ const loadEngageSkillMarkdown = async (): Promise<string> => {
   return loadSkillMarkdown(ENGAGE_SKILL_RESOURCE_SOURCE_PATH, ENGAGE_SKILL_RESOURCE_FALLBACK);
 };
 
+const OCP_ADMIN_SKILL_RESOURCE_URI = "skill://ocp-admin/SKILL.md";
+const OCP_ADMIN_SKILL_RESOURCE_SOURCE_PATH = path.join(
+  __dirname,
+  "skills",
+  "ocp-admin",
+  "SKILL.md",
+);
+const OCP_ADMIN_SKILL_RESOURCE_FALLBACK = `# OCP Admin
+
+Skill content is temporarily unavailable from the repository.
+URI: ${OCP_ADMIN_SKILL_RESOURCE_URI}`;
+
+const loadOcpAdminSkillMarkdown = async (): Promise<string> => {
+  return loadSkillMarkdown(OCP_ADMIN_SKILL_RESOURCE_SOURCE_PATH, OCP_ADMIN_SKILL_RESOURCE_FALLBACK);
+};
+
+const SKILL_LOADERS: Record<string, () => Promise<string>> = {
+  [ENGAGE_SKILL_RESOURCE_URI]: loadEngageSkillMarkdown,
+  [OCP_ADMIN_SKILL_RESOURCE_URI]: loadOcpAdminSkillMarkdown,
+};
+
 const loadEngageWidgetHtml = async (): Promise<string> => {
   let html: string;
   try {
@@ -1057,8 +1078,10 @@ registerAppTool(
       {
         type: "text",
         text: [
-          `Available skill: ${ENGAGE_SKILL_RESOURCE_URI}`,
-          "Use resources/read with that URI to load markdown skill content.",
+          "Available skills:",
+          `  - ${ENGAGE_SKILL_RESOURCE_URI}`,
+          `  - ${OCP_ADMIN_SKILL_RESOURCE_URI}`,
+          "Use get_skill with a URI to load skill content.",
         ].join("\n"),
       },
     ],
@@ -1097,7 +1120,8 @@ registerAppTool(
       };
     }
 
-    if (normalizedUri !== ENGAGE_SKILL_RESOURCE_URI) {
+    const loader = SKILL_LOADERS[normalizedUri];
+    if (!loader) {
       return {
         isError: true,
         content: [
@@ -1105,28 +1129,70 @@ registerAppTool(
             type: "text",
             text: [
               `Unsupported skill URI: ${normalizedUri}`,
-              `Use list_skills to discover supported URIs. Currently supported: ${ENGAGE_SKILL_RESOURCE_URI}`,
+              `Use list_skills to discover supported URIs. Currently supported: ${Object.keys(SKILL_LOADERS).join(", ")}`,
             ].join("\n"),
           },
         ],
       };
     }
 
-    const markdown = await loadEngageSkillMarkdown();
+    const markdown = await loader();
     return {
       content: [
         {
           type: "text",
-          text: [`URI: ${ENGAGE_SKILL_RESOURCE_URI}`, "", markdown].join("\n"),
+          text: [`URI: ${normalizedUri}`, "", markdown].join("\n"),
         },
       ],
       structuredContent: {
-        uri: ENGAGE_SKILL_RESOURCE_URI,
+        uri: normalizedUri,
         mimeType: SKILL_RESOURCE_MIME_TYPE,
         text: markdown,
       },
     };
   },
+);
+
+registerAppTool(
+  server,
+  "start_ocp_admin",
+  {
+    title: "Start OCP Admin Workflow",
+    description: "Returns skill routing guidance for OpenShift cluster administration.",
+    inputSchema: z.object({}),
+    annotations: {
+      readOnlyHint: true,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+    _meta: {
+      ui: { resourceUri: engageResourceUri },
+      "openai/outputTemplate": engageResourceUri,
+      "openai/widgetAccessible": true,
+    },
+  },
+  async () => ({
+    content: [
+      {
+        type: "text",
+        text: [
+          "OCP Admin persona activated.",
+          `Read the skill for detailed workflow instructions: ${OCP_ADMIN_SKILL_RESOURCE_URI}`,
+          "Available sub-skill: cluster-inventory (read-only cluster listing)",
+          "Prerequisites: OFFLINE_TOKEN env var, openshift-self-managed and openshift-ocm-managed MCP servers",
+        ].join("\n"),
+      },
+    ],
+    structuredContent: {
+      persona: "ocp-admin",
+      skill_uri: OCP_ADMIN_SKILL_RESOURCE_URI,
+      available_skills: ["cluster-inventory"],
+      prerequisites: {
+        env_vars: ["OFFLINE_TOKEN"],
+        mcp_servers: ["openshift-self-managed", "openshift-ocm-managed"],
+      },
+    },
+  }),
 );
 
 registerAppTool(
@@ -1489,6 +1555,21 @@ server.registerResource(
         uri: ENGAGE_SKILL_RESOURCE_URI,
         mimeType: SKILL_RESOURCE_MIME_TYPE,
         text: await loadEngageSkillMarkdown(),
+      },
+    ],
+  }),
+);
+
+server.registerResource(
+  "ocp-admin-skill",
+  OCP_ADMIN_SKILL_RESOURCE_URI,
+  { mimeType: SKILL_RESOURCE_MIME_TYPE },
+  async () => ({
+    contents: [
+      {
+        uri: OCP_ADMIN_SKILL_RESOURCE_URI,
+        mimeType: SKILL_RESOURCE_MIME_TYPE,
+        text: await loadOcpAdminSkillMarkdown(),
       },
     ],
   }),

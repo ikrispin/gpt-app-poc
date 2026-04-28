@@ -13,3 +13,4 @@ Thumbs.db
 .data/
 .tmp-tests/
 coverage/
+.claude/

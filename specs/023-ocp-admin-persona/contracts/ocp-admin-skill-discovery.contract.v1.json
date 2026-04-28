@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OCP Admin Skill Discovery Contract",
+  "description": "Defines expected responses for list_skills and get_skill when OCP admin persona is registered",
+  "version": "1.0.0",
+  "feature": "023-ocp-admin-persona",
+  "contracts": {
+    "list_skills_includes_ocp_admin": {
+      "description": "list_skills response MUST include both engage and ocp-admin skill URIs",
+      "tool": "list_skills",
+      "assertions": [
+        {
+          "field": "content[0].text",
+          "contains": "skill://engage-red-hat-support/SKILL.md"
+        },
+        {
+          "field": "content[0].text",
+          "contains": "skill://ocp-admin/SKILL.md"
+        }
+      ]
+    },
+    "get_skill_returns_ocp_admin_content": {
+      "description": "get_skill with OCP admin URI MUST return persona markdown with intent routing",
+      "tool": "get_skill",
+      "input": {
+        "uri": "skill://ocp-admin/SKILL.md"
+      },
+      "assertions": [
+        {
+          "field": "content[0].text",
+          "contains": "ocp-admin"
+        },
+        {
+          "field": "content[0].text",
+          "contains": "cluster-inventory"
+        },
+        {
+          "field": "structuredContent.uri",
+          "equals": "skill://ocp-admin/SKILL.md"
+        },
+        {
+          "field": "structuredContent.mimeType",
+          "equals": "text/markdown"
+        }
+      ]
+    },
+    "get_skill_unsupported_uri_lists_all": {
+      "description": "get_skill with unsupported URI MUST list all supported URIs in error",
+      "tool": "get_skill",
+      "input": {
+        "uri": "skill://nonexistent/SKILL.md"
+      },
+      "assertions": [
+        {
+          "field": "isError",
+          "equals": true
+        },
+        {
+          "field": "content[0].text",
+          "contains": "skill://engage-red-hat-support/SKILL.md"
+        },
+        {
+          "field": "content[0].text",
+          "contains": "skill://ocp-admin/SKILL.md"
+        }
+      ]
+    },
+    "get_skill_engage_unchanged": {
+      "description": "get_skill with engage URI MUST continue to return engage skill content",
+      "tool": "get_skill",
+      "input": {
+        "uri": "skill://engage-red-hat-support/SKILL.md"
+      },
+      "assertions": [
+        {
+          "field": "structuredContent.uri",
+          "equals": "skill://engage-red-hat-support/SKILL.md"
+        },
+        {
+          "field": "structuredContent.mimeType",
+          "equals": "text/markdown"
+        },
+        {
+          "field": "isError",
+          "absent": true
+        }
+      ]
+    }
+  }
+}

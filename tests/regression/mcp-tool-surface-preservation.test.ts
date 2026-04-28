@@ -8,6 +8,7 @@ type JsonRpcResponse =
 const REQUIRED_TOOLS = [
   "list_skills",
   "get_skill",
+  "start_ocp_admin",
   "get_cpu_information",
   "mint_engage_consent_token",
   "generate_sosreport",
@@ -25,6 +26,7 @@ const REQUIRED_RESOURCES = [
   "ui://engage-red-hat-support/steps/sos-report.html",
   "ui://engage-red-hat-support/steps/jira-attach.html",
   "skill://engage-red-hat-support/SKILL.md",
+  "skill://ocp-admin/SKILL.md",
 ] as const;
 const TROUBLESHOOTING_CPU_RESOURCE_PREFIX = "resource://engage/troubleshooting/cpu/";
 
