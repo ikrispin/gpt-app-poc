@@ -27,6 +27,7 @@ const REQUIRED_RESOURCES = [
   "ui://engage-red-hat-support/steps/jira-attach.html",
   "skill://engage-red-hat-support/SKILL.md",
   "skill://ocp-admin/SKILL.md",
+  "ui://ocp-admin/app.html",
 ] as const;
 const TROUBLESHOOTING_CPU_RESOURCE_PREFIX = "resource://engage/troubleshooting/cpu/";
 
@@ -84,8 +85,9 @@ test("MCP tool surface includes existing and new tools", async () => {
       assert.ok(names.has(required), `missing tool ${required}`);
     }
 
+    const engageToolNames = REQUIRED_TOOLS.filter((name) => name !== "start_ocp_admin");
     const incompatibleTemplateTool = (listed.tools ?? []).find((tool) => {
-      if (!REQUIRED_TOOLS.includes(tool.name as (typeof REQUIRED_TOOLS)[number])) {
+      if (!engageToolNames.includes(tool.name as (typeof REQUIRED_TOOLS)[number])) {
         return false;
       }
       return tool._meta?.["openai/outputTemplate"] !== "ui://engage-red-hat-support/app.html";
@@ -93,7 +95,14 @@ test("MCP tool surface includes existing and new tools", async () => {
     assert.equal(
       incompatibleTemplateTool === undefined,
       true,
-      "required tools must keep openai/outputTemplate bound to engage app URI",
+      "engage tools must keep openai/outputTemplate bound to engage app URI",
+    );
+    const ocpAdminTool = (listed.tools ?? []).find((tool) => tool.name === "start_ocp_admin");
+    assert.ok(ocpAdminTool, "start_ocp_admin tool must exist");
+    assert.ok(
+      typeof ocpAdminTool?._meta?.["openai/outputTemplate"] === "string" &&
+        (ocpAdminTool._meta["openai/outputTemplate"] as string).startsWith("ui://ocp-admin/"),
+      "start_ocp_admin must reference ocp-admin UI template",
     );
 
     const resources = (await jsonRpc("resources/list")) as { resources?: Array<{ uri?: string }> };

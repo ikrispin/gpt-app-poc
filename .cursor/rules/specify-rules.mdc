@@ -43,6 +43,7 @@ Auto-generated from all feature plans. Last updated: 2026-02-02
 - In-memory session-scoped buffers and interval jobs (no persistent storage) (022-cpu-resource-ui)
 - TypeScript 5.x (ESM), Node.js runtime + `@modelcontextprotocol/sdk`, `express`, `zod` (023-ocp-admin-persona)
 - N/A — no persistent or in-memory state for this feature (023-ocp-admin-persona)
+- N/A — mock data embedded in source; no persistent state (024-ocp-admin-ui)
 
 - TypeScript (Node.js 18+) + @modelcontextprotocol/sdk, @modelcontextprotocol/ext-apps, Express, cors, Vite, vite-plugin-singlefile, tsx (001-mcp-apps-hello-world)
 
@@ -62,9 +63,9 @@ npm test && npm run lint
 TypeScript (Node.js 18+): Follow standard conventions
 
 ## Recent Changes
+- 024-ocp-admin-ui: Added TypeScript 5.x (ESM), React 19.x, Node.js runtime + `@modelcontextprotocol/sdk`, `@modelcontextprotocol/ext-apps`, `react`, `react-dom`, `express`, `zod`
 - 023-ocp-admin-persona: Added TypeScript 5.x (ESM), Node.js runtime + `@modelcontextprotocol/sdk`, `express`, `zod`
 - 022-cpu-resource-ui: Added TypeScript 5.x (ESM), React 19.x, Node.js runtime + `@modelcontextprotocol/sdk`, `@modelcontextprotocol/ext-apps`, `react`, `react-dom`, `express`, `zod`
-- 021-cpu-info-ui-step: Added TypeScript 5.x (ESM), React 19.x, Node.js runtime + `@modelcontextprotocol/sdk`, `@modelcontextprotocol/ext-apps`, `react`, `react-dom`, `zod`, `express`
 
 
 <!-- MANUAL ADDITIONS START -->

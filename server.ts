@@ -753,6 +753,9 @@ const engageStepSelectUri = "ui://engage-red-hat-support/steps/select-product.ht
 const engageStepTroubleshootingUri = "ui://engage-red-hat-support/steps/troubleshooting.html";
 const engageStepSosUri = "ui://engage-red-hat-support/steps/sos-report.html";
 const engageStepJiraUri = "ui://engage-red-hat-support/steps/jira-attach.html";
+const ocpAdminResourceUri = widgetResourceVersion
+  ? `ui://ocp-admin/app.html?v=${encodeURIComponent(widgetResourceVersion)}`
+  : "ui://ocp-admin/app.html";
 const widgetBuildId = widgetResourceVersion || `build-${Date.now()}`;
 const DEFAULT_WIDGET_DOMAIN = "https://leisured-carina-unpromotable.ngrok-free.dev";
 
@@ -789,15 +792,14 @@ const SKILL_LOADERS: Record<string, () => Promise<string>> = {
   [OCP_ADMIN_SKILL_RESOURCE_URI]: loadOcpAdminSkillMarkdown,
 };
 
-const loadEngageWidgetHtml = async (): Promise<string> => {
-  let html: string;
+const loadRawWidgetHtml = async (): Promise<string> => {
   try {
-    html = await fs.readFile(
+    return await fs.readFile(
       path.join(__dirname, "dist", "mcp-app.html"),
       "utf-8",
     );
   } catch (_error) {
-    html = `<!doctype html>
+    return `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -859,7 +861,12 @@ const loadEngageWidgetHtml = async (): Promise<string> => {
   </body>
 </html>`;
   }
+};
 
+const loadEngageWidgetHtml = async (): Promise<string> => loadWidgetHtml("engage");
+const loadOcpAdminWidgetHtml = async (): Promise<string> => loadWidgetHtml("ocp-admin");
+
+const injectWidgetMeta = (html: string, workflowId: string): string => {
   const widgetDomain = process.env.WIDGET_DOMAIN?.trim() || DEFAULT_WIDGET_DOMAIN;
   const escapedWidgetDomain = widgetDomain
     .replace(/&/g, "&amp;")
@@ -871,15 +878,24 @@ const loadEngageWidgetHtml = async (): Promise<string> => {
     .replace(/"/g, "&quot;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
-  const apiBaseInjection = [
+  const escapedWorkflowId = workflowId
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  const metaInjection = [
     `<meta name="gpt-app-api-base" content="${escapedWidgetDomain}" />`,
     `<meta name="gpt-app-build-id" content="${escapedWidgetBuildId}" />`,
+    `<meta name="gpt-app-workflow" content="${escapedWorkflowId}" />`,
   ].join("");
-  html = html.includes("</head>")
-    ? html.replace("</head>", `${apiBaseInjection}</head>`)
-    : `${apiBaseInjection}${html}`;
+  return html.includes("</head>")
+    ? html.replace("</head>", `${metaInjection}</head>`)
+    : `${metaInjection}${html}`;
+};
 
-  return html;
+const loadWidgetHtml = async (workflowId: string): Promise<string> => {
+  const rawHtml = await loadRawWidgetHtml();
+  return injectWidgetMeta(rawHtml, workflowId);
 };
 
 const GET_SKILL_INPUT_SCHEMA = z.object({ uri: z.string().min(1, "skill URI is required") });
@@ -1166,8 +1182,8 @@ registerAppTool(
       destructiveHint: false,
     },
     _meta: {
-      ui: { resourceUri: engageResourceUri },
-      "openai/outputTemplate": engageResourceUri,
+      ui: { resourceUri: ocpAdminResourceUri },
+      "openai/outputTemplate": ocpAdminResourceUri,
       "openai/widgetAccessible": true,
     },
   },
@@ -1724,6 +1740,34 @@ registerEngageUiResource(engageStepSelectUri);
 registerEngageUiResource(engageStepTroubleshootingUri);
 registerEngageUiResource(engageStepSosUri);
 registerEngageUiResource(engageStepJiraUri);
+
+const registerOcpAdminUiResource = (uri: string) => registerAppResource(
+  server,
+  uri,
+  uri,
+  { mimeType: RESOURCE_MIME_TYPE },
+  async () => {
+    const html = await loadOcpAdminWidgetHtml();
+    const widgetDomain = process.env.WIDGET_DOMAIN?.trim() || DEFAULT_WIDGET_DOMAIN;
+    return {
+      contents: [
+        {
+          uri,
+          mimeType: RESOURCE_MIME_TYPE,
+          _meta: {
+            "openai/widgetDomain": widgetDomain,
+            "openai/widgetCSP": {
+              connect_domains: [widgetDomain],
+            },
+          },
+          text: html,
+        },
+      ],
+    };
+  },
+);
+
+registerOcpAdminUiResource(ocpAdminResourceUri);
 
 export const createApp = () => {
   const app = express();

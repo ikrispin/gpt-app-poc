@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OCP Admin UI Resource Contract",
+  "description": "Defines expected behavior for OCP admin UI resource registration and workflow routing",
+  "version": "1.0.0",
+  "feature": "024-ocp-admin-ui",
+  "contracts": {
+    "ocp_admin_ui_resource_registered": {
+      "description": "ui://ocp-admin/app.html MUST appear in resources/list",
+      "method": "resources/list",
+      "assertions": [
+        {
+          "field": "resources[].uri",
+          "contains": "ui://ocp-admin/app.html"
+        }
+      ]
+    },
+    "ocp_admin_ui_resource_serves_html_with_workflow_meta": {
+      "description": "ui://ocp-admin/app.html MUST serve HTML containing gpt-app-workflow meta tag set to ocp-admin",
+      "method": "resources/read",
+      "input": {
+        "uri": "ui://ocp-admin/app.html"
+      },
+      "assertions": [
+        {
+          "field": "contents[0].mimeType",
+          "equals": "text/html;profile=mcp-app"
+        },
+        {
+          "field": "contents[0].text",
+          "contains": "gpt-app-workflow"
+        },
+        {
+          "field": "contents[0].text",
+          "contains": "ocp-admin"
+        }
+      ]
+    },
+    "engage_ui_resource_serves_html_with_engage_workflow_meta": {
+      "description": "ui://engage-red-hat-support/app.html MUST serve HTML containing gpt-app-workflow meta tag set to engage (regression)",
+      "method": "resources/read",
+      "input": {
+        "uri": "ui://engage-red-hat-support/app.html"
+      },
+      "assertions": [
+        {
+          "field": "contents[0].text",
+          "contains": "gpt-app-workflow"
+        },
+        {
+          "field": "contents[0].text",
+          "contains": "engage"
+        }
+      ]
+    },
+    "start_ocp_admin_references_ocp_admin_ui": {
+      "description": "start_ocp_admin tool MUST reference ui://ocp-admin/app.html in its _meta, not the engage URI",
+      "method": "tools/list",
+      "assertions": [
+        {
+          "field": "tools[name=start_ocp_admin]._meta.ui.resourceUri",
+          "contains": "ui://ocp-admin/app.html"
+        }
+      ]
+    }
+  }
+}

@@ -6,6 +6,9 @@ import { z } from "zod";
 import "./mcp-app/rhds-step0.css";
 import { EngageWorkflowApp } from "./mcp-app/App";
 import type { CpuTelemetryRow, FormState, StatusVariant, UiState, WorkflowState, WorkflowStep } from "./mcp-app/state";
+import { OcpAdminApp } from "./mcp-app/ocp-admin/OcpAdminApp";
+import type { OcpAdminStep, OcpAdminUiState, OcpAdminWorkflowState } from "./mcp-app/ocp-admin/ocp-state";
+import { MOCK_CLUSTERS } from "./mcp-app/ocp-admin/ocp-state";
 
 type ToolTextContent = { type: string; text?: string };
 type ToolResult = {
@@ -956,5 +959,44 @@ render = () => {
   );
 };
 
-bootstrapRoute();
-render();
+const detectedWorkflow = document
+  .querySelector('meta[name="gpt-app-workflow"]')
+  ?.getAttribute("content") ?? "engage";
+
+if (detectedWorkflow === "ocp-admin") {
+  const ocpWorkflowState: OcpAdminWorkflowState = { current_step: "prerequisites" };
+  const ocpUiState: OcpAdminUiState = {
+    statusMessage: "",
+    statusVariant: "info",
+    clusters: MOCK_CLUSTERS,
+  };
+
+  const setOcpAdminStep = (step: OcpAdminStep) => {
+    ocpWorkflowState.current_step = step;
+    if (step === "prerequisites") window.location.hash = "step-1";
+    else if (step === "cluster_inventory") window.location.hash = "step-2";
+    ocpRender();
+  };
+
+  const ocpRender = () => {
+    reactRoot.render(
+      createElement(OcpAdminApp, {
+        currentStep: ocpWorkflowState.current_step,
+        statusMessage: ocpUiState.statusMessage,
+        statusVariant: ocpUiState.statusVariant,
+        clusters: ocpUiState.clusters,
+        onNavigatePrerequisites: () => setOcpAdminStep("prerequisites"),
+        onNavigateInventory: () => setOcpAdminStep("cluster_inventory"),
+      }),
+    );
+  };
+
+  const hash = window.location.hash.replace("#", "");
+  if (hash === "step-2") {
+    ocpWorkflowState.current_step = "cluster_inventory";
+  }
+  ocpRender();
+} else {
+  bootstrapRoute();
+  render();
+}
