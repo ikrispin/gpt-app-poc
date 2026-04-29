@@ -1,4 +1,4 @@
-import type { ClusterRow, OcpAdminStep, StatusVariant } from "./ocp-state";
+import type { ClusterRow, OcpAdminStep, PrerequisiteCheckResult, StatusVariant } from "./ocp-state";
 import { StatusDisplayAdapter } from "../ui/status-display-adapter";
 import { PrerequisitesContent, ClusterInventoryContent } from "./ocp-step-content";
 
@@ -7,8 +7,12 @@ type OcpAdminAppProps = {
   statusMessage: string;
   statusVariant: StatusVariant;
   clusters: ClusterRow[];
+  isLoading: boolean;
+  prerequisiteResults: PrerequisiteCheckResult | null;
   onNavigatePrerequisites: () => void;
   onNavigateInventory: () => void;
+  onLoadClusters: () => void;
+  onCheckPrerequisites: () => void;
 };
 
 export function OcpAdminApp({
@@ -16,8 +20,12 @@ export function OcpAdminApp({
   statusMessage,
   statusVariant,
   clusters,
+  isLoading,
+  prerequisiteResults,
   onNavigatePrerequisites,
   onNavigateInventory,
+  onLoadClusters,
+  onCheckPrerequisites,
 }: OcpAdminAppProps) {
   return (
     <div className="rhds-shell">
@@ -50,10 +58,18 @@ export function OcpAdminApp({
         </nav>
         <div className="rhds-step-panel">
           {currentStep === "prerequisites" && (
-            <PrerequisitesContent onContinue={onNavigateInventory} />
+            <PrerequisitesContent
+              onContinue={onNavigateInventory}
+              prerequisiteResults={prerequisiteResults}
+              onCheckPrerequisites={onCheckPrerequisites}
+            />
           )}
           {currentStep === "cluster_inventory" && (
-            <ClusterInventoryContent clusters={clusters} />
+            <ClusterInventoryContent
+              clusters={clusters}
+              isLoading={isLoading}
+              onLoadClusters={onLoadClusters}
+            />
           )}
         </div>
       </section>

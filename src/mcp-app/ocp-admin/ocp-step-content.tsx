@@ -1,29 +1,46 @@
-import type { ClusterRow } from "./ocp-state";
+import type { ClusterRow, PrerequisiteCheckResult } from "./ocp-state";
 import { ActionButtonAdapter } from "../ui/action-button-adapter";
 
 type PrerequisitesContentProps = {
   onContinue: () => void;
+  prerequisiteResults: PrerequisiteCheckResult | null;
+  onCheckPrerequisites: () => void;
 };
 
-export function PrerequisitesContent({ onContinue }: PrerequisitesContentProps) {
+export function PrerequisitesContent({ onContinue, prerequisiteResults, onCheckPrerequisites }: PrerequisitesContentProps) {
   return (
     <div className="rhds-step-form">
       <h2 className="rhds-step-form__heading">OpenShift Cluster Administration</h2>
       <p>Manage multi-cluster fleets across self-managed (OCP, SNO) and managed service (ROSA, ARO, OSD) deployments.</p>
 
       <div className="rhds-field-group" style={{ marginTop: "1rem" }}>
-        <h3 style={{ fontSize: "0.95rem", margin: "0 0 0.5rem" }}>Required Environment Variables</h3>
-        <ul style={{ margin: 0, paddingLeft: "1.25rem" }}>
-          <li><strong>OFFLINE_TOKEN</strong> — Red Hat authentication token from cloud.redhat.com/openshift/token</li>
-        </ul>
+        <h3 style={{ fontSize: "0.95rem", margin: "0 0 0.5rem" }}>Environment Variables</h3>
+        {prerequisiteResults === null ? (
+          <p style={{ color: "var(--rhds-text-muted, #4f5255)", fontStyle: "italic" }}>Checking prerequisites...</p>
+        ) : (
+          <ul style={{ margin: 0, paddingLeft: "1.25rem", listStyle: "none" }}>
+            <li>
+              <span style={{ marginRight: "0.5rem" }}>{prerequisiteResults.offline_token_set ? "✅" : "❌"}</span>
+              <strong>OFFLINE_TOKEN</strong> — {prerequisiteResults.offline_token_set ? "Set" : "Not set (required from cloud.redhat.com/openshift/token)"}
+            </li>
+          </ul>
+        )}
       </div>
 
       <div className="rhds-field-group" style={{ marginTop: "1rem" }}>
-        <h3 style={{ fontSize: "0.95rem", margin: "0 0 0.5rem" }}>Required MCP Servers</h3>
-        <ul style={{ margin: 0, paddingLeft: "1.25rem" }}>
-          <li><strong>openshift-self-managed</strong> — Assisted Installer API for OCP/SNO cluster lifecycle</li>
-          <li><strong>openshift-ocm-managed</strong> — OCM API for managed service clusters (ROSA, ARO, OSD)</li>
-        </ul>
+        <h3 style={{ fontSize: "0.95rem", margin: "0 0 0.5rem" }}>MCP Servers</h3>
+        {prerequisiteResults === null ? (
+          <p style={{ color: "var(--rhds-text-muted, #4f5255)", fontStyle: "italic" }}>Checking...</p>
+        ) : (
+          <ul style={{ margin: 0, paddingLeft: "1.25rem", listStyle: "none" }}>
+            {prerequisiteResults.mcp_servers.map((server) => (
+              <li key={server.name} style={{ marginBottom: "0.25rem" }}>
+                <span style={{ marginRight: "0.5rem" }}>{server.status === "connected" ? "✅" : "⚠️"}</span>
+                <strong>{server.name}</strong> — {server.description} ({server.status})
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="rhds-field-group" style={{ marginTop: "1rem" }}>
@@ -35,7 +52,10 @@ export function PrerequisitesContent({ onContinue }: PrerequisitesContentProps) 
         </ul>
       </div>
 
-      <div style={{ marginTop: "1.5rem" }}>
+      <div style={{ marginTop: "1.5rem", display: "flex", gap: "0.75rem" }}>
+        <ActionButtonAdapter id="ocp-recheck" variant="secondary" onClick={onCheckPrerequisites}>
+          Re-check
+        </ActionButtonAdapter>
         <ActionButtonAdapter id="ocp-continue" variant="primary" onClick={onContinue}>
           Continue to Cluster Inventory
         </ActionButtonAdapter>
@@ -46,6 +66,8 @@ export function PrerequisitesContent({ onContinue }: PrerequisitesContentProps) 
 
 type ClusterInventoryContentProps = {
   clusters: ClusterRow[];
+  isLoading: boolean;
+  onLoadClusters: () => void;
 };
 
 const STATUS_DISPLAY: Record<string, string> = {
@@ -66,7 +88,28 @@ function buildSummary(clusters: ClusterRow[]): string {
   return `Found ${clusters.length} cluster(s): ${parts.join(", ")}`;
 }
 
-export function ClusterInventoryContent({ clusters }: ClusterInventoryContentProps) {
+export function ClusterInventoryContent({ clusters, isLoading, onLoadClusters }: ClusterInventoryContentProps) {
+  if (clusters.length === 0 && !isLoading) {
+    return (
+      <div className="rhds-step-form">
+        <h2 className="rhds-step-form__heading">Cluster Inventory</h2>
+        <p style={{ color: "var(--rhds-text-muted, #4f5255)", marginBottom: "1rem" }}>No clusters loaded yet.</p>
+        <ActionButtonAdapter id="ocp-load" variant="primary" onClick={onLoadClusters}>
+          Load Clusters
+        </ActionButtonAdapter>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="rhds-step-form">
+        <h2 className="rhds-step-form__heading">Cluster Inventory</h2>
+        <p style={{ color: "var(--rhds-text-muted, #4f5255)", fontStyle: "italic" }}>Loading clusters...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="rhds-step-form">
       <h2 className="rhds-step-form__heading">Cluster Inventory</h2>
@@ -97,6 +140,12 @@ export function ClusterInventoryContent({ clusters }: ClusterInventoryContentPro
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div style={{ marginTop: "1rem" }}>
+        <ActionButtonAdapter id="ocp-refresh" variant="secondary" onClick={onLoadClusters}>
+          Refresh
+        </ActionButtonAdapter>
       </div>
     </div>
   );

@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OCP Admin Interactive Tools Contract",
+  "description": "Defines expected response shapes for check_ocp_prerequisites and list_ocp_clusters tools",
+  "version": "1.0.0",
+  "feature": "025-ocp-admin-interactive-ui",
+  "contracts": {
+    "check_ocp_prerequisites_response": {
+      "description": "check_ocp_prerequisites MUST return structured content with prerequisite status",
+      "tool": "check_ocp_prerequisites",
+      "input": {},
+      "assertions": [
+        {
+          "field": "structuredContent.offline_token_set",
+          "type": "boolean"
+        },
+        {
+          "field": "structuredContent.mcp_servers",
+          "type": "array"
+        },
+        {
+          "field": "structuredContent.mcp_servers[0].name",
+          "type": "string"
+        },
+        {
+          "field": "structuredContent.mcp_servers[0].status",
+          "type": "string"
+        },
+        {
+          "field": "content[0].type",
+          "equals": "text"
+        }
+      ]
+    },
+    "list_ocp_clusters_response": {
+      "description": "list_ocp_clusters MUST return structured content with clusters array and total",
+      "tool": "list_ocp_clusters",
+      "input": {},
+      "assertions": [
+        {
+          "field": "structuredContent.clusters",
+          "type": "array"
+        },
+        {
+          "field": "structuredContent.total",
+          "type": "number"
+        },
+        {
+          "field": "structuredContent.clusters[0].name",
+          "type": "string"
+        },
+        {
+          "field": "structuredContent.clusters[0].status",
+          "type": "string"
+        },
+        {
+          "field": "structuredContent.clusters[0].type",
+          "type": "string"
+        },
+        {
+          "field": "content[0].type",
+          "equals": "text"
+        }
+      ]
+    }
+  }
+}

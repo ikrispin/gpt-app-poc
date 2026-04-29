@@ -9,6 +9,8 @@ const REQUIRED_TOOLS = [
   "list_skills",
   "get_skill",
   "start_ocp_admin",
+  "check_ocp_prerequisites",
+  "list_ocp_clusters",
   "get_cpu_information",
   "mint_engage_consent_token",
   "generate_sosreport",
@@ -85,7 +87,8 @@ test("MCP tool surface includes existing and new tools", async () => {
       assert.ok(names.has(required), `missing tool ${required}`);
     }
 
-    const engageToolNames = REQUIRED_TOOLS.filter((name) => name !== "start_ocp_admin");
+    const OCP_ADMIN_TOOLS = ["start_ocp_admin", "check_ocp_prerequisites", "list_ocp_clusters"];
+    const engageToolNames = REQUIRED_TOOLS.filter((name) => !OCP_ADMIN_TOOLS.includes(name));
     const incompatibleTemplateTool = (listed.tools ?? []).find((tool) => {
       if (!engageToolNames.includes(tool.name as (typeof REQUIRED_TOOLS)[number])) {
         return false;

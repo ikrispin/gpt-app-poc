@@ -7,8 +7,7 @@ import "./mcp-app/rhds-step0.css";
 import { EngageWorkflowApp } from "./mcp-app/App";
 import type { CpuTelemetryRow, FormState, StatusVariant, UiState, WorkflowState, WorkflowStep } from "./mcp-app/state";
 import { OcpAdminApp } from "./mcp-app/ocp-admin/OcpAdminApp";
-import type { OcpAdminStep, OcpAdminUiState, OcpAdminWorkflowState } from "./mcp-app/ocp-admin/ocp-state";
-import { MOCK_CLUSTERS } from "./mcp-app/ocp-admin/ocp-state";
+import type { OcpAdminStep, OcpAdminUiState, OcpAdminWorkflowState, PrerequisiteCheckResult, ClusterRow } from "./mcp-app/ocp-admin/ocp-state";
 
 type ToolTextContent = { type: string; text?: string };
 type ToolResult = {
@@ -968,13 +967,65 @@ if (detectedWorkflow === "ocp-admin") {
   const ocpUiState: OcpAdminUiState = {
     statusMessage: "",
     statusVariant: "info",
-    clusters: MOCK_CLUSTERS,
+    clusters: [],
+    isLoading: false,
+    prerequisiteResults: null,
+  };
+
+  const setOcpStatus = (message: string, variant: OcpAdminUiState["statusVariant"]) => {
+    ocpUiState.statusMessage = message;
+    ocpUiState.statusVariant = variant;
   };
 
   const setOcpAdminStep = (step: OcpAdminStep) => {
     ocpWorkflowState.current_step = step;
     if (step === "prerequisites") window.location.hash = "step-1";
     else if (step === "cluster_inventory") window.location.hash = "step-2";
+    ocpRender();
+  };
+
+  const ocpCallTool = async (
+    name: string,
+    args: Record<string, unknown>,
+  ): Promise<ToolResult> => {
+    try {
+      const result = (await app.callServerTool({ name, arguments: args })) as ToolResult;
+      return result;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setOcpStatus(`Operation failed: ${message}`, "danger");
+      ocpRender();
+      return { isError: true, content: [{ type: "text", text: message }] };
+    }
+  };
+
+  const onCheckPrerequisites = async () => {
+    const result = await ocpCallTool("check_ocp_prerequisites", {});
+    if (!result.isError && result.structuredContent) {
+      ocpUiState.prerequisiteResults = result.structuredContent as PrerequisiteCheckResult;
+      setOcpStatus("Prerequisites checked.", "info");
+    }
+    ocpRender();
+  };
+
+  const onLoadClusters = async () => {
+    ocpUiState.isLoading = true;
+    setOcpStatus("", "info");
+    ocpRender();
+
+    const result = await ocpCallTool("list_ocp_clusters", {});
+
+    if (result.isError) {
+      ocpUiState.isLoading = false;
+      setOcpStatus("Failed to load clusters. Click Load Clusters to retry.", "danger");
+      ocpRender();
+      return;
+    }
+
+    const structured = result.structuredContent ?? {};
+    ocpUiState.clusters = (structured.clusters ?? []) as ClusterRow[];
+    ocpUiState.isLoading = false;
+    setOcpStatus(`Loaded ${ocpUiState.clusters.length} cluster(s).`, "success");
     ocpRender();
   };
 
@@ -985,8 +1036,12 @@ if (detectedWorkflow === "ocp-admin") {
         statusMessage: ocpUiState.statusMessage,
         statusVariant: ocpUiState.statusVariant,
         clusters: ocpUiState.clusters,
+        isLoading: ocpUiState.isLoading,
+        prerequisiteResults: ocpUiState.prerequisiteResults,
         onNavigatePrerequisites: () => setOcpAdminStep("prerequisites"),
         onNavigateInventory: () => setOcpAdminStep("cluster_inventory"),
+        onLoadClusters,
+        onCheckPrerequisites,
       }),
     );
   };
@@ -996,6 +1051,7 @@ if (detectedWorkflow === "ocp-admin") {
     ocpWorkflowState.current_step = "cluster_inventory";
   }
   ocpRender();
+  void onCheckPrerequisites();
 } else {
   bootstrapRoute();
   render();
