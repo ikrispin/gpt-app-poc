@@ -7,7 +7,7 @@ import "./mcp-app/rhds-step0.css";
 import { EngageWorkflowApp } from "./mcp-app/App";
 import type { CpuTelemetryRow, FormState, StatusVariant, UiState, WorkflowState, WorkflowStep } from "./mcp-app/state";
 import { OcpAdminApp } from "./mcp-app/ocp-admin/OcpAdminApp";
-import type { OcpAdminStep, OcpAdminUiState, OcpAdminWorkflowState, PrerequisiteCheckResult, ClusterRow } from "./mcp-app/ocp-admin/ocp-state";
+import type { OcpAdminStep, OcpAdminUiState, OcpAdminWorkflowState, PrerequisiteCheckResult, ClusterRow, DataSource } from "./mcp-app/ocp-admin/ocp-state";
 
 type ToolTextContent = { type: string; text?: string };
 type ToolResult = {
@@ -970,6 +970,7 @@ if (detectedWorkflow === "ocp-admin") {
     clusters: [],
     isLoading: false,
     prerequisiteResults: null,
+    dataSource: null,
   };
 
   const setOcpStatus = (message: string, variant: OcpAdminUiState["statusVariant"]) => {
@@ -1024,8 +1025,10 @@ if (detectedWorkflow === "ocp-admin") {
 
     const structured = result.structuredContent ?? {};
     ocpUiState.clusters = (structured.clusters ?? []) as ClusterRow[];
+    ocpUiState.dataSource = (structured.dataSource as DataSource) ?? "mock";
     ocpUiState.isLoading = false;
-    setOcpStatus(`Loaded ${ocpUiState.clusters.length} cluster(s).`, "success");
+    const sourceLabel = ocpUiState.dataSource === "live" ? " (live)" : ocpUiState.dataSource === "partial" ? " (partial)" : " (mock)";
+    setOcpStatus(`Loaded ${ocpUiState.clusters.length} cluster(s)${sourceLabel}.`, "success");
     ocpRender();
   };
 
@@ -1038,6 +1041,7 @@ if (detectedWorkflow === "ocp-admin") {
         clusters: ocpUiState.clusters,
         isLoading: ocpUiState.isLoading,
         prerequisiteResults: ocpUiState.prerequisiteResults,
+        dataSource: ocpUiState.dataSource,
         onNavigatePrerequisites: () => setOcpAdminStep("prerequisites"),
         onNavigateInventory: () => setOcpAdminStep("cluster_inventory"),
         onLoadClusters,

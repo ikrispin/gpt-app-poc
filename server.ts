@@ -13,6 +13,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { SubscribeRequestSchema, UnsubscribeRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { listClusters, checkConnectivity, isPodmanAvailable } from "./src/mcp-client/ocp-mcp-client.js";
 import { JiraAuthContext, JiraClient } from "./src/jira/jira-client.js";
 import {
   attachArtifactSchema,
@@ -1248,24 +1249,28 @@ registerAppTool(
     },
   },
   async () => {
-    const offlineTokenSet = typeof process.env.OFFLINE_TOKEN === "string" && process.env.OFFLINE_TOKEN.length > 0;
-    const mcpServers = [
-      { name: "openshift-self-managed", status: "not_connected", description: "Assisted Installer API for OCP/SNO cluster lifecycle" },
-      { name: "openshift-ocm-managed", status: "not_connected", description: "OCM API for managed service clusters (ROSA, ARO, OSD)" },
-    ];
-    const tokenStatus = offlineTokenSet ? "set" : "not set";
+    const connectivity = await checkConnectivity();
+    const tokenStatus = connectivity.offlineTokenSet ? "set" : "not set";
+    const podmanStatus = connectivity.podmanAvailable ? "available" : "not available";
+    const mcpServers = connectivity.servers.map((s) => ({
+      name: s.name,
+      status: s.status,
+      description: s.description,
+    }));
     return {
       content: [
         {
           type: "text",
           text: [
             `OFFLINE_TOKEN: ${tokenStatus}`,
-            ...mcpServers.map((s) => `${s.name}: ${s.status} — ${s.description}`),
+            `Podman: ${podmanStatus}`,
+            ...connectivity.servers.map((s) => `${s.name}: ${s.status} — ${s.description}${s.error ? ` (${s.error})` : ""}`),
           ].join("\n"),
         },
       ],
       structuredContent: {
-        offline_token_set: offlineTokenSet,
+        offline_token_set: connectivity.offlineTokenSet,
+        podman_available: connectivity.podmanAvailable,
         mcp_servers: mcpServers,
       },
     };
@@ -1291,7 +1296,25 @@ registerAppTool(
     },
   },
   async () => {
-    const lines = OCP_MOCK_CLUSTERS.map(
+    const result = await listClusters();
+
+    let clusters: OcpClusterRow[];
+    let dataSource: "live" | "partial" | "mock";
+    let statusNote = "";
+
+    if (result.ok === false) {
+      clusters = OCP_MOCK_CLUSTERS;
+      dataSource = "mock";
+      statusNote = `\n(Using mock data: ${result.error})`;
+    } else {
+      clusters = [...result.clusters];
+      dataSource = result.dataSource;
+      if (result.errors.length > 0) {
+        statusNote = `\n(Partial data — some servers unavailable: ${result.errors.join("; ")})`;
+      }
+    }
+
+    const lines = clusters.map(
       (c) => `${c.name} | ${c.status} | ${c.type} | ${c.version} | ${c.provider} | ${c.region}`,
     );
     return {
@@ -1299,15 +1322,17 @@ registerAppTool(
         {
           type: "text",
           text: [
-            `Found ${OCP_MOCK_CLUSTERS.length} cluster(s):`,
+            `Found ${clusters.length} cluster(s) [source: ${dataSource}]:`,
             "Name | Status | Type | Version | Provider | Region",
             ...lines,
-          ].join("\n"),
+            statusNote,
+          ].filter(Boolean).join("\n"),
         },
       ],
       structuredContent: {
-        clusters: OCP_MOCK_CLUSTERS,
-        total: OCP_MOCK_CLUSTERS.length,
+        clusters,
+        total: clusters.length,
+        dataSource,
       },
     };
   },

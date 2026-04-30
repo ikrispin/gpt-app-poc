@@ -1,4 +1,4 @@
-import type { ClusterRow, PrerequisiteCheckResult } from "./ocp-state";
+import type { ClusterRow, DataSource, PrerequisiteCheckResult } from "./ocp-state";
 import { ActionButtonAdapter } from "../ui/action-button-adapter";
 
 type PrerequisitesContentProps = {
@@ -22,6 +22,10 @@ export function PrerequisitesContent({ onContinue, prerequisiteResults, onCheckP
             <li>
               <span style={{ marginRight: "0.5rem" }}>{prerequisiteResults.offline_token_set ? "✅" : "❌"}</span>
               <strong>OFFLINE_TOKEN</strong> — {prerequisiteResults.offline_token_set ? "Set" : "Not set (required from cloud.redhat.com/openshift/token)"}
+            </li>
+            <li style={{ marginTop: "0.25rem" }}>
+              <span style={{ marginRight: "0.5rem" }}>{prerequisiteResults.podman_available ? "✅" : "❌"}</span>
+              <strong>Podman</strong> — {prerequisiteResults.podman_available ? "Available" : "Not available (required for MCP server containers)"}
             </li>
           </ul>
         )}
@@ -67,6 +71,7 @@ export function PrerequisitesContent({ onContinue, prerequisiteResults, onCheckP
 type ClusterInventoryContentProps = {
   clusters: ClusterRow[];
   isLoading: boolean;
+  dataSource: DataSource;
   onLoadClusters: () => void;
 };
 
@@ -88,7 +93,30 @@ function buildSummary(clusters: ClusterRow[]): string {
   return `Found ${clusters.length} cluster(s): ${parts.join(", ")}`;
 }
 
-export function ClusterInventoryContent({ clusters, isLoading, onLoadClusters }: ClusterInventoryContentProps) {
+function DataSourceBadge({ dataSource }: { dataSource: DataSource }) {
+  if (dataSource === null) return null;
+  const isLive = dataSource === "live";
+  const isPartial = dataSource === "partial";
+  const label = isLive ? "Live data" : isPartial ? "Partial data" : "Mock data (demo)";
+  const color = isLive ? "#3e8635" : isPartial ? "#f0ab00" : "#f0ab00";
+  const bg = isLive ? "#e9f5e6" : isPartial ? "#fef6e0" : "#fef6e0";
+  return (
+    <span style={{
+      display: "inline-block",
+      fontSize: "0.75rem",
+      fontWeight: 600,
+      padding: "0.15rem 0.5rem",
+      borderRadius: "0.75rem",
+      color,
+      backgroundColor: bg,
+      marginBottom: "0.75rem",
+    }}>
+      {label}
+    </span>
+  );
+}
+
+export function ClusterInventoryContent({ clusters, isLoading, dataSource, onLoadClusters }: ClusterInventoryContentProps) {
   if (clusters.length === 0 && !isLoading) {
     return (
       <div className="rhds-step-form">
@@ -113,6 +141,7 @@ export function ClusterInventoryContent({ clusters, isLoading, onLoadClusters }:
   return (
     <div className="rhds-step-form">
       <h2 className="rhds-step-form__heading">Cluster Inventory</h2>
+      <DataSourceBadge dataSource={dataSource} />
       <p style={{ fontWeight: 600, marginBottom: "1rem" }}>{buildSummary(clusters)}</p>
 
       <div style={{ overflowX: "auto" }}>

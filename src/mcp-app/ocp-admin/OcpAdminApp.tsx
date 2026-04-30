@@ -1,4 +1,4 @@
-import type { ClusterRow, OcpAdminStep, PrerequisiteCheckResult, StatusVariant } from "./ocp-state";
+import type { ClusterRow, DataSource, OcpAdminStep, PrerequisiteCheckResult, StatusVariant } from "./ocp-state";
 import { StatusDisplayAdapter } from "../ui/status-display-adapter";
 import { PrerequisitesContent, ClusterInventoryContent } from "./ocp-step-content";
 
@@ -9,6 +9,7 @@ type OcpAdminAppProps = {
   clusters: ClusterRow[];
   isLoading: boolean;
   prerequisiteResults: PrerequisiteCheckResult | null;
+  dataSource: DataSource;
   onNavigatePrerequisites: () => void;
   onNavigateInventory: () => void;
   onLoadClusters: () => void;
@@ -22,6 +23,7 @@ export function OcpAdminApp({
   clusters,
   isLoading,
   prerequisiteResults,
+  dataSource,
   onNavigatePrerequisites,
   onNavigateInventory,
   onLoadClusters,
@@ -68,6 +70,7 @@ export function OcpAdminApp({
             <ClusterInventoryContent
               clusters={clusters}
               isLoading={isLoading}
+              dataSource={dataSource}
               onLoadClusters={onLoadClusters}
             />
           )}

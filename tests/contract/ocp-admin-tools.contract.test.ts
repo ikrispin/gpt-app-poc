@@ -60,6 +60,7 @@ test("check_ocp_prerequisites and list_ocp_clusters return correct structured re
       content?: Array<{ type: string; text: string }>;
       structuredContent?: {
         offline_token_set: boolean;
+        podman_available: boolean;
         mcp_servers: Array<{ name: string; status: string; description: string }>;
       };
     };
@@ -69,6 +70,7 @@ test("check_ocp_prerequisites and list_ocp_clusters return correct structured re
 
     const prereqSc = prereqResult.structuredContent;
     assert.equal(typeof prereqSc?.offline_token_set, "boolean");
+    assert.equal(typeof prereqSc?.podman_available, "boolean");
     assert.ok(Array.isArray(prereqSc?.mcp_servers));
     assert.ok(prereqSc!.mcp_servers.length >= 2);
     assert.equal(typeof prereqSc!.mcp_servers[0].name, "string");
@@ -84,6 +86,7 @@ test("check_ocp_prerequisites and list_ocp_clusters return correct structured re
       structuredContent?: {
         clusters: Array<{ name: string; status: string; type: string; version: string; provider: string; region: string }>;
         total: number;
+        dataSource: string;
       };
     };
 
@@ -94,6 +97,7 @@ test("check_ocp_prerequisites and list_ocp_clusters return correct structured re
     assert.ok(Array.isArray(clusterSc?.clusters));
     assert.equal(clusterSc!.clusters.length, 5);
     assert.equal(clusterSc!.total, 5);
+    assert.ok(["live", "partial", "mock"].includes(clusterSc!.dataSource));
 
     const firstCluster = clusterSc!.clusters[0];
     assert.equal(typeof firstCluster.name, "string");

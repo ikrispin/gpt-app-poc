@@ -24,8 +24,11 @@ export type PrerequisiteResult = {
 
 export type PrerequisiteCheckResult = {
   offline_token_set: boolean;
+  podman_available: boolean;
   mcp_servers: PrerequisiteResult[];
 };
+
+export type DataSource = "live" | "partial" | "mock" | null;
 
 export type OcpAdminUiState = {
   statusMessage: string;
@@ -33,4 +36,5 @@ export type OcpAdminUiState = {
   clusters: ClusterRow[];
   isLoading: boolean;
   prerequisiteResults: PrerequisiteCheckResult | null;
+  dataSource: DataSource;
 };

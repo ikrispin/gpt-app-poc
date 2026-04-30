@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OCP MCP Integration Contract",
+  "description": "Defines expected response shapes with dataSource field for list_ocp_clusters and check_ocp_prerequisites",
+  "version": "1.0.0",
+  "feature": "026-ocp-mcp-integration",
+  "contracts": {
+    "list_ocp_clusters_includes_data_source": {
+      "description": "list_ocp_clusters MUST include dataSource field in structuredContent",
+      "tool": "list_ocp_clusters",
+      "input": {},
+      "assertions": [
+        {
+          "field": "structuredContent.dataSource",
+          "oneOf": ["live", "mock"]
+        },
+        {
+          "field": "structuredContent.clusters",
+          "type": "array"
+        },
+        {
+          "field": "structuredContent.total",
+          "type": "number"
+        }
+      ]
+    },
+    "check_ocp_prerequisites_reports_podman": {
+      "description": "check_ocp_prerequisites MUST report podman availability",
+      "tool": "check_ocp_prerequisites",
+      "input": {},
+      "assertions": [
+        {
+          "field": "structuredContent.podman_available",
+          "type": "boolean"
+        },
+        {
+          "field": "structuredContent.offline_token_set",
+          "type": "boolean"
+        },
+        {
+          "field": "structuredContent.mcp_servers",
+          "type": "array"
+        },
+        {
+          "field": "structuredContent.mcp_servers[0].status",
+          "type": "string"
+        }
+      ]
+    }
+  }
+}
