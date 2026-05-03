@@ -59,6 +59,18 @@ export type ClusterLogsUrlResult =
   | { readonly ok: true; readonly url: string; readonly expires_at?: string; readonly dataSource: "live" }
   | { readonly ok: false; readonly error: string };
 
+export type CreateClusterParams = {
+  readonly name: string;
+  readonly openshift_version: string;
+  readonly base_dns_domain: string;
+  readonly high_availability_mode: "Full" | "None";
+  readonly network_type: "OVNKubernetes" | "OpenShiftSDN";
+};
+
+export type CreateClusterResult =
+  | { readonly ok: true; readonly cluster_id: string; readonly name: string; readonly status: string; readonly dataSource: "live" }
+  | { readonly ok: false; readonly error: string };
+
 export type ServerConnectivityStatus = {
   readonly name: string;
   readonly status: "connected" | "not_connected" | "error";
@@ -521,4 +533,50 @@ export async function getClusterInfo(clusterId: string, clusterType: string): Pr
     const message = err instanceof Error ? err.message : "Unknown error";
     return { ok: false, error: message };
   }
+}
+
+// --- Cluster Creation ---
+
+export async function createCluster(params: CreateClusterParams): Promise<CreateClusterResult> {
+  const config = SERVER_CONFIGS[0]; // creation only via self-managed server
+
+  try {
+    const client = unwrapConnection(await ensureConnection(config));
+    try {
+      const toolResult = await client.callTool({ name: "create_cluster", arguments: { ...params } });
+      const textContent = toolResult.content as Array<{ type: string; text: string }>;
+      const text = textContent.find((c) => c.type === "text")?.text ?? "";
+      return parseCreateClusterResponse(text, params.name);
+    } catch {
+      const retriedClient = unwrapConnection(await reconnect(config));
+      const toolResult = await retriedClient.callTool({ name: "create_cluster", arguments: { ...params } });
+      const textContent = toolResult.content as Array<{ type: string; text: string }>;
+      const text = textContent.find((c) => c.type === "text")?.text ?? "";
+      return parseCreateClusterResponse(text, params.name);
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { ok: false, error: message };
+  }
+}
+
+function parseCreateClusterResponse(text: string, fallbackName: string): CreateClusterResult {
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (parsed && typeof parsed === "object") {
+      const obj = parsed as Record<string, unknown>;
+      const id = String(obj.id ?? obj.cluster_id ?? "");
+      if (!id) return { ok: false, error: "No cluster ID in response" };
+      return {
+        ok: true,
+        cluster_id: id,
+        name: String(obj.name ?? fallbackName),
+        status: String(obj.status ?? "pending-for-input"),
+        dataSource: "live",
+      };
+    }
+  } catch {
+    // not JSON
+  }
+  return { ok: false, error: "Failed to parse create cluster response" };
 }

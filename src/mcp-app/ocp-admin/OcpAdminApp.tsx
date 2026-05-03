@@ -1,6 +1,6 @@
-import type { ClusterDetailInfo, ClusterEvent, ClusterRow, DataSource, OcpAdminStep, PrerequisiteCheckResult, StatusVariant } from "./ocp-state";
+import type { ClusterCreationResult, ClusterCreatorFormState, ClusterDetailInfo, ClusterEvent, ClusterRow, DataSource, OcpAdminStep, PrerequisiteCheckResult, StatusVariant } from "./ocp-state";
 import { StatusDisplayAdapter } from "../ui/status-display-adapter";
-import { PrerequisitesContent, ClusterInventoryContent, ClusterDetailContent } from "./ocp-step-content";
+import { PrerequisitesContent, ClusterInventoryContent, ClusterDetailContent, ClusterCreatorContent } from "./ocp-step-content";
 
 type OcpAdminAppProps = {
   currentStep: OcpAdminStep;
@@ -18,14 +18,21 @@ type OcpAdminAppProps = {
   eventsDataSource: DataSource;
   logsDownloadUrl: string | null;
   isLoadingLogsUrl: boolean;
+  creatorForm: ClusterCreatorFormState;
+  isCreating: boolean;
+  creationResult: ClusterCreationResult | null;
+  creationError: string | null;
   onNavigatePrerequisites: () => void;
   onNavigateInventory: () => void;
+  onNavigateCreator: () => void;
   onLoadClusters: () => void;
   onCheckPrerequisites: () => void;
   onSelectCluster: (clusterId: string) => void;
   onBackToInventory: () => void;
   onLoadEvents: () => void;
   onGetLogsUrl: () => void;
+  onCreatorFieldChange: (field: string, value: string) => void;
+  onCreateCluster: () => void;
 };
 
 export function OcpAdminApp({
@@ -44,14 +51,21 @@ export function OcpAdminApp({
   eventsDataSource,
   logsDownloadUrl,
   isLoadingLogsUrl,
+  creatorForm,
+  isCreating,
+  creationResult,
+  creationError,
   onNavigatePrerequisites,
   onNavigateInventory,
+  onNavigateCreator,
   onLoadClusters,
   onCheckPrerequisites,
   onSelectCluster,
   onBackToInventory,
   onLoadEvents,
   onGetLogsUrl,
+  onCreatorFieldChange,
+  onCreateCluster,
 }: OcpAdminAppProps) {
   return (
     <div className="rhds-shell">
@@ -63,23 +77,31 @@ export function OcpAdminApp({
         <StatusDisplayAdapter message={statusMessage} variant={statusVariant} />
       )}
 
-      <section className="rhds-shell__wizard" aria-label="Workflow steps">
-        <nav className="rhds-step-nav" aria-label="Workflow step navigation">
+      <section className="rhds-shell__wizard" aria-label="Administration sections">
+        <nav className="rhds-step-nav" aria-label="Section navigation">
           <button
             type="button"
             className={`rhds-step-nav__item ${currentStep === "prerequisites" ? "rhds-step-nav__item--active" : ""}`}
-            aria-current={currentStep === "prerequisites" ? "step" : undefined}
+            aria-current={currentStep === "prerequisites" ? "page" : undefined}
             onClick={onNavigatePrerequisites}
           >
-            Step 1: Prerequisites
+            Prerequisites
           </button>
           <button
             type="button"
             className={`rhds-step-nav__item ${currentStep === "cluster_inventory" ? "rhds-step-nav__item--active" : ""}`}
-            aria-current={currentStep === "cluster_inventory" ? "step" : undefined}
+            aria-current={currentStep === "cluster_inventory" ? "page" : undefined}
             onClick={onNavigateInventory}
           >
-            Step 2: Cluster Inventory
+            Cluster Inventory
+          </button>
+          <button
+            type="button"
+            className={`rhds-step-nav__item ${currentStep === "cluster_creator" ? "rhds-step-nav__item--active" : ""}`}
+            aria-current={currentStep === "cluster_creator" ? "page" : undefined}
+            onClick={onNavigateCreator}
+          >
+            Create Cluster
           </button>
         </nav>
         <div className="rhds-step-panel">
@@ -112,6 +134,17 @@ export function OcpAdminApp({
               dataSource={dataSource}
               onLoadClusters={onLoadClusters}
               onSelectCluster={onSelectCluster}
+            />
+          )}
+          {currentStep === "cluster_creator" && (
+            <ClusterCreatorContent
+              formState={creatorForm}
+              isCreating={isCreating}
+              creationResult={creationResult}
+              creationError={creationError}
+              onFieldChange={onCreatorFieldChange}
+              onSubmit={onCreateCluster}
+              onBackToInventory={() => { onBackToInventory(); onNavigateInventory(); }}
             />
           )}
         </div>

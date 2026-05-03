@@ -7,7 +7,7 @@ import "./mcp-app/rhds-step0.css";
 import { EngageWorkflowApp } from "./mcp-app/App";
 import type { CpuTelemetryRow, FormState, StatusVariant, UiState, WorkflowState, WorkflowStep } from "./mcp-app/state";
 import { OcpAdminApp } from "./mcp-app/ocp-admin/OcpAdminApp";
-import type { OcpAdminStep, OcpAdminUiState, OcpAdminWorkflowState, PrerequisiteCheckResult, ClusterRow, ClusterEvent, DataSource, ClusterDetailInfo } from "./mcp-app/ocp-admin/ocp-state";
+import type { OcpAdminStep, OcpAdminUiState, OcpAdminWorkflowState, PrerequisiteCheckResult, ClusterRow, ClusterEvent, ClusterCreatorFormState, ClusterCreationResult, DataSource, ClusterDetailInfo } from "./mcp-app/ocp-admin/ocp-state";
 
 type ToolTextContent = { type: string; text?: string };
 type ToolResult = {
@@ -979,6 +979,16 @@ if (detectedWorkflow === "ocp-admin") {
     logsDownloadUrl: null,
     isLoadingLogsUrl: false,
     eventsDataSource: null,
+    creatorForm: {
+      clusterName: "",
+      openshiftVersion: "4.21",
+      baseDnsDomain: "",
+      highAvailabilityMode: "Full" as const,
+      networkType: "OVNKubernetes" as const,
+    },
+    isCreating: false,
+    creationResult: null,
+    creationError: null,
   };
 
   const setOcpStatus = (message: string, variant: OcpAdminUiState["statusVariant"]) => {
@@ -990,6 +1000,7 @@ if (detectedWorkflow === "ocp-admin") {
     ocpWorkflowState.current_step = step;
     if (step === "prerequisites") window.location.hash = "step-1";
     else if (step === "cluster_inventory") window.location.hash = "step-2";
+    else if (step === "cluster_creator") window.location.hash = "step-3";
     ocpRender();
   };
 
@@ -1142,6 +1153,48 @@ if (detectedWorkflow === "ocp-admin") {
     ocpRender();
   };
 
+  const onCreatorFieldChange = (field: string, value: string) => {
+    (ocpUiState.creatorForm as Record<string, string>)[field] = value;
+    ocpRender();
+  };
+
+  const onCreateCluster = async () => {
+    ocpUiState.isCreating = true;
+    ocpUiState.creationResult = null;
+    ocpUiState.creationError = null;
+    setOcpStatus("", "info");
+    ocpRender();
+
+    const form = ocpUiState.creatorForm;
+    const result = await ocpCallTool("create_ocp_cluster", {
+      cluster_name: form.clusterName,
+      openshift_version: form.openshiftVersion,
+      base_dns_domain: form.baseDnsDomain,
+      high_availability_mode: form.highAvailabilityMode,
+      network_type: form.networkType,
+    });
+
+    ocpUiState.isCreating = false;
+
+    if (result.isError) {
+      const errorText = result.content?.find((c: ToolTextContent) => c.type === "text")?.text ?? "Failed to create cluster.";
+      ocpUiState.creationError = errorText;
+      setOcpStatus("Cluster creation failed.", "danger");
+      ocpRender();
+      return;
+    }
+
+    const structured = result.structuredContent ?? {};
+    ocpUiState.creationResult = {
+      clusterId: String(structured.cluster_id ?? ""),
+      clusterName: String(structured.name ?? form.clusterName),
+      status: String(structured.status ?? "pending-for-input"),
+      dataSource: (structured.dataSource as DataSource) ?? "mock",
+    };
+    setOcpStatus(`Cluster '${ocpUiState.creationResult.clusterName}' created successfully.`, "success");
+    ocpRender();
+  };
+
   const ocpRender = () => {
     reactRoot.render(
       createElement(OcpAdminApp, {
@@ -1160,14 +1213,21 @@ if (detectedWorkflow === "ocp-admin") {
         eventsDataSource: ocpUiState.eventsDataSource,
         logsDownloadUrl: ocpUiState.logsDownloadUrl,
         isLoadingLogsUrl: ocpUiState.isLoadingLogsUrl,
+        creatorForm: ocpUiState.creatorForm,
+        isCreating: ocpUiState.isCreating,
+        creationResult: ocpUiState.creationResult,
+        creationError: ocpUiState.creationError,
         onNavigatePrerequisites: () => setOcpAdminStep("prerequisites"),
         onNavigateInventory: () => setOcpAdminStep("cluster_inventory"),
+        onNavigateCreator: () => setOcpAdminStep("cluster_creator"),
         onLoadClusters,
         onCheckPrerequisites,
         onSelectCluster,
         onBackToInventory,
         onLoadEvents,
         onGetLogsUrl,
+        onCreatorFieldChange,
+        onCreateCluster,
       }),
     );
   };
@@ -1175,6 +1235,8 @@ if (detectedWorkflow === "ocp-admin") {
   const hash = window.location.hash.replace("#", "");
   if (hash === "step-2") {
     ocpWorkflowState.current_step = "cluster_inventory";
+  } else if (hash === "step-3") {
+    ocpWorkflowState.current_step = "cluster_creator";
   }
   ocpRender();
   void onCheckPrerequisites();

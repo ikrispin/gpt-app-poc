@@ -187,6 +187,51 @@ test("check_ocp_prerequisites and list_ocp_clusters return correct structured re
 
     assert.equal(logsRosaResult.isError, true);
     assert.ok(logsRosaResult.content?.[0]?.text?.includes("self-managed"));
+
+    // create_ocp_cluster returns structured creation response (mock fallback)
+    const createResult = (await jsonRpc("tools/call", {
+      name: "create_ocp_cluster",
+      arguments: {
+        cluster_name: "test-cluster",
+        openshift_version: "4.21",
+        base_dns_domain: "test.example.com",
+        high_availability_mode: "Full",
+        network_type: "OVNKubernetes",
+      },
+    })) as {
+      content?: Array<{ type: string; text: string }>;
+      structuredContent?: { cluster_id: string; name: string; status: string; type: string; dataSource: string };
+    };
+
+    assert.equal(createResult.content?.[0]?.type, "text");
+    assert.ok(createResult.content?.[0]?.text?.includes("created"));
+    const createSc = createResult.structuredContent;
+    assert.equal(typeof createSc?.cluster_id, "string");
+    assert.ok(createSc!.cluster_id.length > 0);
+    assert.equal(createSc?.name, "test-cluster");
+    assert.equal(typeof createSc?.status, "string");
+    assert.ok(["live", "mock"].includes(createSc!.dataSource));
+
+    // create_ocp_cluster handles SNO mode
+    const snoResult = (await jsonRpc("tools/call", {
+      name: "create_ocp_cluster",
+      arguments: {
+        cluster_name: "sno-test",
+        openshift_version: "4.21",
+        base_dns_domain: "sno.example.com",
+        high_availability_mode: "None",
+        network_type: "OVNKubernetes",
+      },
+    })) as {
+      content?: Array<{ type: string; text: string }>;
+      structuredContent?: { cluster_id: string; name: string; type: string; dataSource: string };
+    };
+
+    assert.equal(snoResult.content?.[0]?.type, "text");
+    const snoSc = snoResult.structuredContent;
+    assert.equal(typeof snoSc?.cluster_id, "string");
+    assert.equal(snoSc?.name, "sno-test");
+    assert.ok(["live", "mock"].includes(snoSc!.dataSource));
   } finally {
     srv.close();
   }

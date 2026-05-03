@@ -1,5 +1,7 @@
-import type { ClusterDetailInfo, ClusterEvent, ClusterRow, DataSource, PrerequisiteCheckResult } from "./ocp-state";
+import type { ClusterCreationResult, ClusterCreatorFormState, ClusterDetailInfo, ClusterEvent, ClusterRow, DataSource, PrerequisiteCheckResult } from "./ocp-state";
 import { ActionButtonAdapter } from "../ui/action-button-adapter";
+import { TextInputAdapter } from "../ui/text-input-adapter";
+import { SelectAdapter } from "../ui/select-adapter";
 
 type PrerequisitesContentProps = {
   onContinue: () => void;
@@ -367,6 +369,143 @@ export function ClusterDetailContent({
           )}
         </>
       )}
+    </div>
+  );
+}
+
+// --- Cluster Creator ---
+
+type ClusterCreatorContentProps = {
+  formState: ClusterCreatorFormState;
+  isCreating: boolean;
+  creationResult: ClusterCreationResult | null;
+  creationError: string | null;
+  onFieldChange: (field: string, value: string) => void;
+  onSubmit: () => void;
+  onBackToInventory: () => void;
+};
+
+const VERSION_OPTIONS = [
+  { value: "4.21", label: "4.21 (latest)" },
+  { value: "4.20", label: "4.20" },
+  { value: "4.19", label: "4.19" },
+];
+
+const HA_MODE_OPTIONS = [
+  { value: "Full", label: "Full HA (3+ control planes)" },
+  { value: "None", label: "Single Node (SNO)" },
+];
+
+const NETWORK_TYPE_OPTIONS = [
+  { value: "OVNKubernetes", label: "OVN-Kubernetes" },
+  { value: "OpenShiftSDN", label: "OpenShift SDN" },
+];
+
+export function ClusterCreatorContent({
+  formState, isCreating, creationResult, creationError,
+  onFieldChange, onSubmit, onBackToInventory,
+}: ClusterCreatorContentProps) {
+  if (creationResult) {
+    return (
+      <div className="rhds-step-form">
+        <h2 className="rhds-step-form__heading">Cluster Created</h2>
+        <DataSourceBadge dataSource={creationResult.dataSource} />
+
+        <dl style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "0.35rem 1rem", fontSize: "0.875rem", margin: "1rem 0" }}>
+          <div style={{ display: "contents" }}>
+            <dt style={{ fontWeight: 600, color: "var(--rhds-text-muted, #4f5255)" }}>Cluster Name</dt>
+            <dd style={{ margin: 0 }}>{creationResult.clusterName}</dd>
+          </div>
+          <div style={{ display: "contents" }}>
+            <dt style={{ fontWeight: 600, color: "var(--rhds-text-muted, #4f5255)" }}>Cluster ID</dt>
+            <dd style={{ margin: 0, fontFamily: "monospace", fontSize: "0.8rem" }}>{creationResult.clusterId}</dd>
+          </div>
+          <div style={{ display: "contents" }}>
+            <dt style={{ fontWeight: 600, color: "var(--rhds-text-muted, #4f5255)" }}>Status</dt>
+            <dd style={{ margin: 0 }}>{creationResult.status}</dd>
+          </div>
+        </dl>
+
+        <p style={{ fontSize: "0.85rem", color: "var(--rhds-text-muted, #4f5255)", marginBottom: "1rem" }}>
+          The cluster has been created and is waiting for host registration. View it in the Cluster Inventory to continue setup.
+        </p>
+
+        <ActionButtonAdapter id="ocp-creator-to-inventory" variant="primary" onClick={onBackToInventory}>
+          View in Inventory
+        </ActionButtonAdapter>
+      </div>
+    );
+  }
+
+  const canSubmit = formState.clusterName.trim().length > 0
+    && formState.baseDnsDomain.trim().length > 0
+    && !isCreating;
+
+  return (
+    <div className="rhds-step-form">
+      <h2 className="rhds-step-form__heading">Create Cluster</h2>
+      <p style={{ marginBottom: "1rem" }}>Define the configuration for a new self-managed OpenShift cluster.</p>
+
+      {creationError && (
+        <div style={{ padding: "0.75rem", marginBottom: "1rem", backgroundColor: "#fce9e8", border: "1px solid #c9190b", borderRadius: "4px", color: "#c9190b", fontSize: "0.85rem" }}>
+          {creationError}
+        </div>
+      )}
+
+      {isCreating && (
+        <p style={{ color: "var(--rhds-text-muted, #4f5255)", fontStyle: "italic", marginBottom: "1rem" }}>Creating cluster...</p>
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+        <TextInputAdapter
+          id="cluster-name"
+          label="Cluster Name"
+          value={formState.clusterName}
+          placeholder="e.g. my-production-cluster"
+          onChange={(v) => onFieldChange("clusterName", v)}
+        />
+
+        <SelectAdapter
+          id="ocp-version"
+          label="OpenShift Version"
+          value={formState.openshiftVersion}
+          options={VERSION_OPTIONS}
+          onChange={(v) => onFieldChange("openshiftVersion", v)}
+        />
+
+        <TextInputAdapter
+          id="dns-domain"
+          label="Base DNS Domain"
+          value={formState.baseDnsDomain}
+          placeholder="e.g. example.com"
+          onChange={(v) => onFieldChange("baseDnsDomain", v)}
+        />
+
+        <SelectAdapter
+          id="ha-mode"
+          label="High Availability Mode"
+          value={formState.highAvailabilityMode}
+          options={HA_MODE_OPTIONS}
+          onChange={(v) => onFieldChange("highAvailabilityMode", v)}
+        />
+
+        <SelectAdapter
+          id="network-type"
+          label="Network Type"
+          value={formState.networkType}
+          options={NETWORK_TYPE_OPTIONS}
+          onChange={(v) => onFieldChange("networkType", v)}
+        />
+      </div>
+
+      <div style={{ marginTop: "1.5rem", display: "flex", gap: "0.75rem" }}>
+        <ActionButtonAdapter id="ocp-create-submit" variant="primary" isDisabled={!canSubmit} onClick={onSubmit}>
+          Create Cluster
+        </ActionButtonAdapter>
+        <ActionButtonAdapter id="ocp-create-back" variant="secondary" onClick={onBackToInventory}>
+          Back
+        </ActionButtonAdapter>
+      </div>
     </div>
   );
 }

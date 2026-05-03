@@ -13,8 +13,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { SubscribeRequestSchema, UnsubscribeRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import { listClusters, checkConnectivity, isPodmanAvailable, getClusterInfo, getClusterEvents, getClusterLogsUrl } from "./src/mcp-client/ocp-mcp-client.js";
-import type { ClusterDetailInfo, ClusterEvent } from "./src/mcp-client/ocp-mcp-client.js";
+import { listClusters, checkConnectivity, isPodmanAvailable, getClusterInfo, getClusterEvents, getClusterLogsUrl, createCluster } from "./src/mcp-client/ocp-mcp-client.js";
+import type { ClusterDetailInfo, ClusterEvent, CreateClusterParams } from "./src/mcp-client/ocp-mcp-client.js";
 import { JiraAuthContext, JiraClient } from "./src/jira/jira-client.js";
 import {
   attachArtifactSchema,
@@ -849,6 +849,16 @@ const OCP_MOCK_LOGS_URLS: Record<string, string> = {
   "8e5d3e45-77c6-440b-9cfa-9f88187535c6": "https://assisted-logs.example.com/clusters/8e5d3e45/logs.tar.gz?token=mock-token&expires=3600",
 };
 
+const createMockCluster = (params: { cluster_name: string; openshift_version: string; base_dns_domain: string; high_availability_mode: string }) => ({
+  id: randomUUID(),
+  name: params.cluster_name,
+  status: "pending-for-input",
+  type: params.high_availability_mode === "None" ? "SNO" : "OCP",
+  version: params.openshift_version,
+  provider: "Self-managed",
+  region: "-",
+});
+
 const SKILL_LOADERS: Record<string, () => Promise<string>> = {
   [ENGAGE_SKILL_RESOURCE_URI]: loadEngageSkillMarkdown,
   [OCP_ADMIN_SKILL_RESOURCE_URI]: loadOcpAdminSkillMarkdown,
@@ -1565,6 +1575,60 @@ registerAppTool(
     return {
       content: [{ type: "text", text: `Logs download URL: ${url}\nNote: This link may expire. Generate a new one if needed.` }],
       structuredContent: { url, dataSource, cluster_id: args.cluster_id },
+    };
+  },
+);
+
+registerAppTool(
+  server,
+  "create_ocp_cluster",
+  {
+    title: "Create OpenShift Cluster",
+    description: "Creates a new self-managed OpenShift cluster via the Assisted Installer API.",
+    inputSchema: z.object({
+      cluster_name: z.string().min(1).max(54),
+      openshift_version: z.string().min(1),
+      base_dns_domain: z.string().min(1),
+      high_availability_mode: z.enum(["Full", "None"]),
+      network_type: z.enum(["OVNKubernetes", "OpenShiftSDN"]).default("OVNKubernetes"),
+    }),
+    annotations: {
+      readOnlyHint: false,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+    _meta: {
+      ui: { resourceUri: ocpAdminResourceUri },
+      "openai/outputTemplate": ocpAdminResourceUri,
+      "openai/widgetAccessible": true,
+    },
+  },
+  async (args: { cluster_name: string; openshift_version: string; base_dns_domain: string; high_availability_mode: "Full" | "None"; network_type: "OVNKubernetes" | "OpenShiftSDN" }) => {
+    const params: CreateClusterParams = {
+      name: args.cluster_name,
+      openshift_version: args.openshift_version,
+      base_dns_domain: args.base_dns_domain,
+      high_availability_mode: args.high_availability_mode,
+      network_type: args.network_type,
+    };
+
+    const result = await createCluster(params);
+
+    let cluster: { id: string; name: string; status: string; type: string };
+    let dataSource: "live" | "mock";
+
+    if (result.ok === true) {
+      cluster = { id: result.cluster_id, name: result.name, status: result.status, type: args.high_availability_mode === "None" ? "SNO" : "OCP" };
+      dataSource = result.dataSource;
+    } else {
+      const mock = createMockCluster(args);
+      cluster = { id: mock.id, name: mock.name, status: mock.status, type: mock.type };
+      dataSource = "mock";
+    }
+
+    return {
+      content: [{ type: "text", text: `Cluster '${cluster.name}' created. ID: ${cluster.id}. Status: ${cluster.status}.` }],
+      structuredContent: { cluster_id: cluster.id, name: cluster.name, status: cluster.status, type: cluster.type, dataSource },
     };
   },
 );

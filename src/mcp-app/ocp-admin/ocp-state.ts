@@ -1,4 +1,4 @@
-export type OcpAdminStep = "prerequisites" | "cluster_inventory";
+export type OcpAdminStep = "prerequisites" | "cluster_inventory" | "cluster_creator";
 
 export type OcpAdminWorkflowState = {
   current_step: OcpAdminStep;
@@ -60,6 +60,21 @@ export type ClusterEvent = {
   category?: string;
 };
 
+export type ClusterCreatorFormState = {
+  clusterName: string;
+  openshiftVersion: string;
+  baseDnsDomain: string;
+  highAvailabilityMode: "Full" | "None";
+  networkType: "OVNKubernetes" | "OpenShiftSDN";
+};
+
+export type ClusterCreationResult = {
+  clusterId: string;
+  clusterName: string;
+  status: string;
+  dataSource: DataSource;
+};
+
 export type OcpAdminUiState = {
   statusMessage: string;
   statusVariant: StatusVariant;
@@ -75,4 +90,8 @@ export type OcpAdminUiState = {
   logsDownloadUrl: string | null;
   isLoadingLogsUrl: boolean;
   eventsDataSource: DataSource;
+  creatorForm: ClusterCreatorFormState;
+  isCreating: boolean;
+  creationResult: ClusterCreationResult | null;
+  creationError: string | null;
 };
