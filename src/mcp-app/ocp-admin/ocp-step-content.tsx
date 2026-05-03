@@ -1,4 +1,4 @@
-import type { ClusterRow, DataSource, PrerequisiteCheckResult } from "./ocp-state";
+import type { ClusterDetailInfo, ClusterRow, DataSource, PrerequisiteCheckResult } from "./ocp-state";
 import { ActionButtonAdapter } from "../ui/action-button-adapter";
 
 type PrerequisitesContentProps = {
@@ -73,6 +73,7 @@ type ClusterInventoryContentProps = {
   isLoading: boolean;
   dataSource: DataSource;
   onLoadClusters: () => void;
+  onSelectCluster: (clusterId: string) => void;
 };
 
 const STATUS_DISPLAY: Record<string, string> = {
@@ -116,7 +117,7 @@ function DataSourceBadge({ dataSource }: { dataSource: DataSource }) {
   );
 }
 
-export function ClusterInventoryContent({ clusters, isLoading, dataSource, onLoadClusters }: ClusterInventoryContentProps) {
+export function ClusterInventoryContent({ clusters, isLoading, dataSource, onLoadClusters, onSelectCluster }: ClusterInventoryContentProps) {
   if (clusters.length === 0 && !isLoading) {
     return (
       <div className="rhds-step-form">
@@ -159,7 +160,16 @@ export function ClusterInventoryContent({ clusters, isLoading, dataSource, onLoa
           <tbody>
             {clusters.map((cluster) => (
               <tr key={cluster.id}>
-                <td style={{ padding: "0.5rem", borderBottom: "1px solid var(--rhds-border-subtle, #d2d2d2)" }}>{cluster.name}</td>
+                <td style={{ padding: "0.5rem", borderBottom: "1px solid var(--rhds-border-subtle, #d2d2d2)" }}>
+                  <button
+                    type="button"
+                    title="View cluster details"
+                    onClick={() => onSelectCluster(cluster.id)}
+                    style={{ background: "none", border: "none", padding: 0, color: "#06c", textDecoration: "underline", cursor: "pointer", font: "inherit" }}
+                  >
+                    {cluster.name}
+                  </button>
+                </td>
                 <td style={{ padding: "0.5rem", borderBottom: "1px solid var(--rhds-border-subtle, #d2d2d2)" }}>{cluster.status}</td>
                 <td style={{ padding: "0.5rem", borderBottom: "1px solid var(--rhds-border-subtle, #d2d2d2)" }}>{cluster.type}</td>
                 <td style={{ padding: "0.5rem", borderBottom: "1px solid var(--rhds-border-subtle, #d2d2d2)" }}>{cluster.version}</td>
@@ -176,6 +186,82 @@ export function ClusterInventoryContent({ clusters, isLoading, dataSource, onLoa
           Refresh
         </ActionButtonAdapter>
       </div>
+    </div>
+  );
+}
+
+// --- Cluster Detail View ---
+
+type ClusterDetailContentProps = {
+  detail: ClusterDetailInfo | null;
+  isLoading: boolean;
+  dataSource: DataSource;
+  onBack: () => void;
+};
+
+const DETAIL_FIELDS: Array<{ key: keyof ClusterDetailInfo; label: string; isLink?: boolean }> = [
+  { key: "id", label: "ID" },
+  { key: "status", label: "Status" },
+  { key: "type", label: "Type" },
+  { key: "version", label: "Version" },
+  { key: "provider", label: "Provider" },
+  { key: "region", label: "Region" },
+  { key: "created_at", label: "Created" },
+  { key: "host_count", label: "Hosts" },
+  { key: "platform_type", label: "Platform" },
+  { key: "api_vip", label: "API VIP" },
+  { key: "api_url", label: "API URL" },
+  { key: "ingress_vip", label: "Ingress VIP" },
+  { key: "console_url", label: "Console", isLink: true },
+  { key: "dns_domain", label: "DNS Domain" },
+  { key: "network_type", label: "Network Type" },
+  { key: "cluster_network_cidr", label: "Cluster CIDR" },
+  { key: "service_network_cidr", label: "Service CIDR" },
+  { key: "source", label: "Data Source" },
+];
+
+export function ClusterDetailContent({ detail, isLoading, dataSource, onBack }: ClusterDetailContentProps) {
+  return (
+    <div className="rhds-step-form">
+      <div style={{ marginBottom: "1rem" }}>
+        <ActionButtonAdapter id="ocp-back" variant="secondary" onClick={onBack}>
+          Back to Cluster Inventory
+        </ActionButtonAdapter>
+      </div>
+
+      {isLoading && (
+        <p style={{ color: "var(--rhds-text-muted, #4f5255)", fontStyle: "italic" }}>Loading cluster details...</p>
+      )}
+
+      {!isLoading && !detail && (
+        <p style={{ color: "var(--rhds-text-muted, #4f5255)" }}>Cluster details not available.</p>
+      )}
+
+      {!isLoading && detail && (
+        <>
+          <h2 className="rhds-step-form__heading">{detail.name}</h2>
+          <DataSourceBadge dataSource={dataSource} />
+
+          <dl style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "0.35rem 1rem", fontSize: "0.875rem", margin: 0 }}>
+            {DETAIL_FIELDS.map(({ key, label, isLink }) => {
+              const value = detail[key];
+              if (value === undefined || value === null || value === "" || value === "-") return null;
+              return (
+                <div key={key} style={{ display: "contents" }}>
+                  <dt style={{ fontWeight: 600, color: "var(--rhds-text-muted, #4f5255)" }}>{label}</dt>
+                  <dd style={{ margin: 0 }}>
+                    {isLink && typeof value === "string" ? (
+                      <a href={value} target="_blank" rel="noopener noreferrer" style={{ color: "#06c" }}>{value}</a>
+                    ) : (
+                      String(value)
+                    )}
+                  </dd>
+                </div>
+              );
+            })}
+          </dl>
+        </>
+      )}
     </div>
   );
 }

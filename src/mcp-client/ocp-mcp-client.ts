@@ -18,6 +18,32 @@ export type ClusterListResult =
   | { readonly ok: true; readonly clusters: readonly OcpClusterRow[]; readonly dataSource: "live" | "partial"; readonly errors: readonly string[] }
   | { readonly ok: false; readonly error: string };
 
+export type ClusterDetailInfo = {
+  readonly name: string;
+  readonly id: string;
+  readonly status: string;
+  readonly type: string;
+  readonly version: string;
+  readonly provider: string;
+  readonly region: string;
+  readonly created_at?: string;
+  readonly api_vip?: string;
+  readonly ingress_vip?: string;
+  readonly api_url?: string;
+  readonly console_url?: string;
+  readonly dns_domain?: string;
+  readonly host_count?: number;
+  readonly network_type?: string;
+  readonly cluster_network_cidr?: string;
+  readonly service_network_cidr?: string;
+  readonly platform_type?: string;
+  readonly source?: string;
+};
+
+export type ClusterDetailResult =
+  | { ok: true; detail: ClusterDetailInfo; dataSource: "live" }
+  | { ok: false; error: string };
+
 export type ServerConnectivityStatus = {
   readonly name: string;
   readonly status: "connected" | "not_connected" | "error";
@@ -300,4 +326,80 @@ export async function checkConnectivity(): Promise<ConnectivityResult> {
     offlineTokenSet,
     servers: serverStatuses,
   };
+}
+
+// --- Cluster Detail ---
+
+const SELF_MANAGED_TYPES = new Set(["OCP", "SNO"]);
+
+function serverConfigForClusterType(clusterType: string): ServerConfig {
+  return SELF_MANAGED_TYPES.has(clusterType) ? SERVER_CONFIGS[0] : SERVER_CONFIGS[1];
+}
+
+function parseClusterDetailResponse(text: string, serverName: string): ClusterDetailInfo | null {
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (!parsed || typeof parsed !== "object") return null;
+    const obj = parsed as Record<string, unknown>;
+    return {
+      name: String(obj.name ?? ""),
+      id: String(obj.id ?? obj.cluster_id ?? ""),
+      status: String(obj.status ?? "unknown"),
+      type: detectClusterType(serverName, obj),
+      version: String(obj.openshift_version ?? obj.version ?? ""),
+      provider: detectProvider(serverName, obj),
+      region: String(obj.region ?? obj.cloud_provider_region ?? "-"),
+      created_at: obj.created_at ? String(obj.created_at) : undefined,
+      api_vip: obj.api_vip ? String(obj.api_vip) : obj.api_url ? String(obj.api_url) : undefined,
+      ingress_vip: obj.ingress_vip ? String(obj.ingress_vip) : undefined,
+      api_url: obj.api_url ? String(obj.api_url) : undefined,
+      console_url: obj.console_url ? String(obj.console_url) : obj.console ? String((obj.console as Record<string, unknown>).url ?? "") : undefined,
+      dns_domain: obj.base_dns_domain ? String(obj.base_dns_domain) : obj.dns_domain ? String(obj.dns_domain) : undefined,
+      host_count: typeof obj.host_count === "number" ? obj.host_count : typeof obj.nodes === "object" && obj.nodes ? Object.keys(obj.nodes).length : undefined,
+      network_type: obj.network_type ? String(obj.network_type) : undefined,
+      cluster_network_cidr: extractCidr(obj.cluster_networks ?? obj.cluster_network_cidr),
+      service_network_cidr: extractCidr(obj.service_networks ?? obj.service_network_cidr),
+      platform_type: obj.platform ? String(typeof obj.platform === "object" ? (obj.platform as Record<string, unknown>).type ?? obj.platform : obj.platform) : undefined,
+      source: serverName,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function extractCidr(value: unknown): string | undefined {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value) && value.length > 0) {
+    const first = value[0];
+    if (typeof first === "object" && first && "cidr" in first) return String(first.cidr);
+    if (typeof first === "string") return first;
+  }
+  return undefined;
+}
+
+export async function getClusterInfo(clusterId: string, clusterType: string): Promise<ClusterDetailResult> {
+  const config = serverConfigForClusterType(clusterType);
+
+  try {
+    const client = unwrapConnection(await ensureConnection(config));
+    try {
+      const toolResult = await client.callTool({ name: "cluster_info", arguments: { cluster_id: clusterId } });
+      const textContent = toolResult.content as Array<{ type: string; text: string }>;
+      const text = textContent.find((c) => c.type === "text")?.text ?? "";
+      const detail = parseClusterDetailResponse(text, config.name);
+      if (!detail) return { ok: false, error: "Failed to parse cluster detail response" };
+      return { ok: true, detail, dataSource: "live" };
+    } catch {
+      const retriedClient = unwrapConnection(await reconnect(config));
+      const toolResult = await retriedClient.callTool({ name: "cluster_info", arguments: { cluster_id: clusterId } });
+      const textContent = toolResult.content as Array<{ type: string; text: string }>;
+      const text = textContent.find((c) => c.type === "text")?.text ?? "";
+      const detail = parseClusterDetailResponse(text, config.name);
+      if (!detail) return { ok: false, error: "Failed to parse cluster detail response after retry" };
+      return { ok: true, detail, dataSource: "live" };
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { ok: false, error: message };
+  }
 }

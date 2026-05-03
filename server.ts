@@ -13,7 +13,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { SubscribeRequestSchema, UnsubscribeRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import { listClusters, checkConnectivity, isPodmanAvailable } from "./src/mcp-client/ocp-mcp-client.js";
+import { listClusters, checkConnectivity, isPodmanAvailable, getClusterInfo } from "./src/mcp-client/ocp-mcp-client.js";
+import type { ClusterDetailInfo } from "./src/mcp-client/ocp-mcp-client.js";
 import { JiraAuthContext, JiraClient } from "./src/jira/jira-client.js";
 import {
   attachArtifactSchema,
@@ -806,6 +807,14 @@ const OCP_MOCK_CLUSTERS: OcpClusterRow[] = [
   { name: "edge-01", id: "8e5d3e45-77c6-440b-9cfa-9f88187535c6", status: "pending-for-input", type: "SNO", version: "4.21.0", provider: "Self-managed", region: "-" },
 ];
 
+const OCP_MOCK_CLUSTER_DETAILS: Record<string, ClusterDetailInfo> = {
+  "762df996-acba-4a42-9fe9-edb0a8ec8bee": { name: "prod-ocp", id: "762df996-acba-4a42-9fe9-edb0a8ec8bee", status: "installing", type: "OCP", version: "4.21.0", provider: "Baremetal", region: "-", created_at: "2026-04-28T10:15:00Z", host_count: 3, network_type: "OVNKubernetes", cluster_network_cidr: "10.128.0.0/14", service_network_cidr: "172.30.0.0/16", platform_type: "baremetal", dns_domain: "prod.example.com", source: "openshift-self-managed" },
+  "a1b2c3d4-e5f6-4789-a0b1-c2d3e4f5a6b7": { name: "dev-ocp", id: "a1b2c3d4-e5f6-4789-a0b1-c2d3e4f5a6b7", status: "ready", type: "OCP", version: "4.20.5", provider: "vSphere", region: "-", created_at: "2026-03-15T08:30:00Z", api_vip: "192.168.1.100", ingress_vip: "192.168.1.101", console_url: "https://console-openshift-console.apps.dev-ocp.example.com", host_count: 3, network_type: "OVNKubernetes", cluster_network_cidr: "10.128.0.0/14", service_network_cidr: "172.30.0.0/16", platform_type: "vsphere", dns_domain: "dev-ocp.example.com", source: "openshift-self-managed" },
+  "2o2gevtk4bohdu41ff4jps0dl8rrshb6": { name: "rosa-prod", id: "2o2gevtk4bohdu41ff4jps0dl8rrshb6", status: "ready", type: "ROSA", version: "4.21.0", provider: "AWS", region: "us-east-1", created_at: "2026-04-01T14:00:00Z", api_url: "https://api.rosa-prod.abcd.p1.openshiftapps.com:6443", console_url: "https://console-openshift-console.apps.rosa-prod.abcd.p1.openshiftapps.com", host_count: 3, network_type: "OVNKubernetes", cluster_network_cidr: "10.128.0.0/14", service_network_cidr: "172.30.0.0/16", platform_type: "aws", source: "openshift-ocm-managed" },
+  "20ekbvg1jkaqssc47mmc0irlvhf59c0p": { name: "aro-dev", id: "20ekbvg1jkaqssc47mmc0irlvhf59c0p", status: "ready", type: "ARO", version: "4.20.0", provider: "Azure", region: "-", created_at: "2026-02-20T11:45:00Z", api_url: "https://api.aro-dev.eastus.aroapp.io:6443", console_url: "https://console-openshift-console.apps.aro-dev.eastus.aroapp.io", host_count: 3, network_type: "OVNKubernetes", cluster_network_cidr: "10.128.0.0/14", service_network_cidr: "172.30.0.0/16", platform_type: "azure", source: "openshift-ocm-managed" },
+  "8e5d3e45-77c6-440b-9cfa-9f88187535c6": { name: "edge-01", id: "8e5d3e45-77c6-440b-9cfa-9f88187535c6", status: "pending-for-input", type: "SNO", version: "4.21.0", provider: "Self-managed", region: "-", created_at: "2026-04-29T16:00:00Z", host_count: 1, network_type: "OVNKubernetes", cluster_network_cidr: "10.128.0.0/14", service_network_cidr: "172.30.0.0/16", platform_type: "none", dns_domain: "edge-01.lab.example.com", source: "openshift-self-managed" },
+};
+
 const SKILL_LOADERS: Record<string, () => Promise<string>> = {
   [ENGAGE_SKILL_RESOURCE_URI]: loadEngageSkillMarkdown,
   [OCP_ADMIN_SKILL_RESOURCE_URI]: loadOcpAdminSkillMarkdown,
@@ -1334,6 +1343,78 @@ registerAppTool(
         total: clusters.length,
         dataSource,
       },
+    };
+  },
+);
+
+registerAppTool(
+  server,
+  "get_cluster_info",
+  {
+    title: "Get Cluster Details",
+    description: "Returns detailed information about a specific OpenShift cluster by ID.",
+    inputSchema: z.object({
+      cluster_id: z.string().min(1),
+      cluster_type: z.string().min(1),
+    }),
+    annotations: {
+      readOnlyHint: true,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+    _meta: {
+      ui: { resourceUri: ocpAdminResourceUri },
+      "openai/outputTemplate": ocpAdminResourceUri,
+      "openai/widgetAccessible": true,
+    },
+  },
+  async (args: { cluster_id: string; cluster_type: string }) => {
+    const result = await getClusterInfo(args.cluster_id, args.cluster_type);
+
+    let detail: ClusterDetailInfo | undefined;
+    let dataSource: "live" | "mock";
+
+    if (result.ok === true) {
+      detail = result.detail;
+      dataSource = result.dataSource;
+    } else {
+      const mockDetail = OCP_MOCK_CLUSTER_DETAILS[args.cluster_id];
+      if (mockDetail) {
+        detail = mockDetail;
+        dataSource = "mock";
+      }
+    }
+
+    if (!detail) {
+      return {
+        isError: true,
+        content: [{ type: "text", text: `Cluster not found: ${args.cluster_id}` }],
+      };
+    }
+
+    const lines = [
+      `Cluster: ${detail.name} (${detail.type})`,
+      `ID: ${detail.id}`,
+      `Status: ${detail.status}`,
+      `Version: ${detail.version}`,
+      `Provider: ${detail.provider}`,
+      `Region: ${detail.region}`,
+      detail.created_at ? `Created: ${detail.created_at}` : "",
+      detail.host_count !== undefined ? `Hosts: ${detail.host_count}` : "",
+      detail.api_vip ? `API VIP: ${detail.api_vip}` : "",
+      detail.api_url ? `API URL: ${detail.api_url}` : "",
+      detail.ingress_vip ? `Ingress VIP: ${detail.ingress_vip}` : "",
+      detail.console_url ? `Console: ${detail.console_url}` : "",
+      detail.dns_domain ? `DNS Domain: ${detail.dns_domain}` : "",
+      detail.network_type ? `Network: ${detail.network_type}` : "",
+      detail.cluster_network_cidr ? `Cluster CIDR: ${detail.cluster_network_cidr}` : "",
+      detail.service_network_cidr ? `Service CIDR: ${detail.service_network_cidr}` : "",
+      detail.platform_type ? `Platform: ${detail.platform_type}` : "",
+    ].filter(Boolean);
+
+    return {
+      content: [{ type: "text", text: lines.join("\n") }],
+      structuredContent: { ...detail, dataSource },
     };
   },
 );

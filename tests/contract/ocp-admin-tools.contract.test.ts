@@ -106,6 +106,37 @@ test("check_ocp_prerequisites and list_ocp_clusters return correct structured re
     assert.equal(typeof firstCluster.version, "string");
     assert.equal(typeof firstCluster.provider, "string");
     assert.equal(typeof firstCluster.region, "string");
+    // get_cluster_info returns detail for a known mock cluster
+    const detailResult = (await jsonRpc("tools/call", {
+      name: "get_cluster_info",
+      arguments: { cluster_id: "762df996-acba-4a42-9fe9-edb0a8ec8bee", cluster_type: "OCP" },
+    })) as {
+      content?: Array<{ type: string; text: string }>;
+      structuredContent?: {
+        name: string;
+        id: string;
+        status: string;
+        type: string;
+        dataSource: string;
+      };
+    };
+
+    assert.equal(detailResult.content?.[0]?.type, "text");
+    const detailSc = detailResult.structuredContent;
+    assert.equal(typeof detailSc?.name, "string");
+    assert.equal(detailSc?.id, "762df996-acba-4a42-9fe9-edb0a8ec8bee");
+    assert.equal(typeof detailSc?.status, "string");
+    assert.equal(typeof detailSc?.type, "string");
+    assert.ok(["live", "mock"].includes(detailSc!.dataSource));
+
+    // get_cluster_info returns error for unknown cluster
+    const unknownResult = (await jsonRpc("tools/call", {
+      name: "get_cluster_info",
+      arguments: { cluster_id: "nonexistent-id", cluster_type: "OCP" },
+    })) as { isError?: boolean; content?: Array<{ type: string; text: string }> };
+
+    assert.equal(unknownResult.isError, true);
+    assert.ok(unknownResult.content?.[0]?.text?.includes("not found"));
   } finally {
     srv.close();
   }

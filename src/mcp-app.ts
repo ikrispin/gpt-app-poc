@@ -7,7 +7,7 @@ import "./mcp-app/rhds-step0.css";
 import { EngageWorkflowApp } from "./mcp-app/App";
 import type { CpuTelemetryRow, FormState, StatusVariant, UiState, WorkflowState, WorkflowStep } from "./mcp-app/state";
 import { OcpAdminApp } from "./mcp-app/ocp-admin/OcpAdminApp";
-import type { OcpAdminStep, OcpAdminUiState, OcpAdminWorkflowState, PrerequisiteCheckResult, ClusterRow, DataSource } from "./mcp-app/ocp-admin/ocp-state";
+import type { OcpAdminStep, OcpAdminUiState, OcpAdminWorkflowState, PrerequisiteCheckResult, ClusterRow, DataSource, ClusterDetailInfo } from "./mcp-app/ocp-admin/ocp-state";
 
 type ToolTextContent = { type: string; text?: string };
 type ToolResult = {
@@ -971,6 +971,9 @@ if (detectedWorkflow === "ocp-admin") {
     isLoading: false,
     prerequisiteResults: null,
     dataSource: null,
+    selectedClusterId: null,
+    clusterDetail: null,
+    isLoadingDetail: false,
   };
 
   const setOcpStatus = (message: string, variant: OcpAdminUiState["statusVariant"]) => {
@@ -1032,6 +1035,48 @@ if (detectedWorkflow === "ocp-admin") {
     ocpRender();
   };
 
+  const onSelectCluster = async (clusterId: string) => {
+    const cluster = ocpUiState.clusters.find((c) => c.id === clusterId);
+    if (!cluster) {
+      setOcpStatus("Cluster not found in inventory.", "warning");
+      ocpRender();
+      return;
+    }
+
+    ocpUiState.selectedClusterId = clusterId;
+    ocpUiState.clusterDetail = null;
+    ocpUiState.isLoadingDetail = true;
+    setOcpStatus("", "info");
+    ocpRender();
+
+    const result = await ocpCallTool("get_cluster_info", {
+      cluster_id: clusterId,
+      cluster_type: cluster.type,
+    });
+
+    if (result.isError) {
+      ocpUiState.isLoadingDetail = false;
+      setOcpStatus("Failed to load cluster details.", "danger");
+      ocpRender();
+      return;
+    }
+
+    const structured = result.structuredContent ?? {};
+    ocpUiState.clusterDetail = structured as ClusterDetailInfo;
+    ocpUiState.dataSource = (structured.dataSource as DataSource) ?? "mock";
+    ocpUiState.isLoadingDetail = false;
+    setOcpStatus(`Loaded details for ${cluster.name}.`, "success");
+    ocpRender();
+  };
+
+  const onBackToInventory = () => {
+    ocpUiState.selectedClusterId = null;
+    ocpUiState.clusterDetail = null;
+    ocpUiState.isLoadingDetail = false;
+    setOcpStatus("", "info");
+    ocpRender();
+  };
+
   const ocpRender = () => {
     reactRoot.render(
       createElement(OcpAdminApp, {
@@ -1042,10 +1087,15 @@ if (detectedWorkflow === "ocp-admin") {
         isLoading: ocpUiState.isLoading,
         prerequisiteResults: ocpUiState.prerequisiteResults,
         dataSource: ocpUiState.dataSource,
+        selectedClusterId: ocpUiState.selectedClusterId,
+        clusterDetail: ocpUiState.clusterDetail,
+        isLoadingDetail: ocpUiState.isLoadingDetail,
         onNavigatePrerequisites: () => setOcpAdminStep("prerequisites"),
         onNavigateInventory: () => setOcpAdminStep("cluster_inventory"),
         onLoadClusters,
         onCheckPrerequisites,
+        onSelectCluster,
+        onBackToInventory,
       }),
     );
   };

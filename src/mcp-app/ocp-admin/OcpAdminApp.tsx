@@ -1,6 +1,6 @@
-import type { ClusterRow, DataSource, OcpAdminStep, PrerequisiteCheckResult, StatusVariant } from "./ocp-state";
+import type { ClusterDetailInfo, ClusterRow, DataSource, OcpAdminStep, PrerequisiteCheckResult, StatusVariant } from "./ocp-state";
 import { StatusDisplayAdapter } from "../ui/status-display-adapter";
-import { PrerequisitesContent, ClusterInventoryContent } from "./ocp-step-content";
+import { PrerequisitesContent, ClusterInventoryContent, ClusterDetailContent } from "./ocp-step-content";
 
 type OcpAdminAppProps = {
   currentStep: OcpAdminStep;
@@ -10,10 +10,15 @@ type OcpAdminAppProps = {
   isLoading: boolean;
   prerequisiteResults: PrerequisiteCheckResult | null;
   dataSource: DataSource;
+  selectedClusterId: string | null;
+  clusterDetail: ClusterDetailInfo | null;
+  isLoadingDetail: boolean;
   onNavigatePrerequisites: () => void;
   onNavigateInventory: () => void;
   onLoadClusters: () => void;
   onCheckPrerequisites: () => void;
+  onSelectCluster: (clusterId: string) => void;
+  onBackToInventory: () => void;
 };
 
 export function OcpAdminApp({
@@ -24,10 +29,15 @@ export function OcpAdminApp({
   isLoading,
   prerequisiteResults,
   dataSource,
+  selectedClusterId,
+  clusterDetail,
+  isLoadingDetail,
   onNavigatePrerequisites,
   onNavigateInventory,
   onLoadClusters,
   onCheckPrerequisites,
+  onSelectCluster,
+  onBackToInventory,
 }: OcpAdminAppProps) {
   return (
     <div className="rhds-shell">
@@ -66,12 +76,21 @@ export function OcpAdminApp({
               onCheckPrerequisites={onCheckPrerequisites}
             />
           )}
-          {currentStep === "cluster_inventory" && (
+          {currentStep === "cluster_inventory" && selectedClusterId !== null && (
+            <ClusterDetailContent
+              detail={clusterDetail}
+              isLoading={isLoadingDetail}
+              dataSource={dataSource}
+              onBack={onBackToInventory}
+            />
+          )}
+          {currentStep === "cluster_inventory" && selectedClusterId === null && (
             <ClusterInventoryContent
               clusters={clusters}
               isLoading={isLoading}
               dataSource={dataSource}
               onLoadClusters={onLoadClusters}
+              onSelectCluster={onSelectCluster}
             />
           )}
         </div>
