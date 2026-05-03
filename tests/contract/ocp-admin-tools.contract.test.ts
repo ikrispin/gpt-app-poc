@@ -137,6 +137,56 @@ test("check_ocp_prerequisites and list_ocp_clusters return correct structured re
 
     assert.equal(unknownResult.isError, true);
     assert.ok(unknownResult.content?.[0]?.text?.includes("not found"));
+
+    // get_cluster_events returns events for a self-managed cluster (mock)
+    const eventsResult = (await jsonRpc("tools/call", {
+      name: "get_cluster_events",
+      arguments: { cluster_id: "762df996-acba-4a42-9fe9-edb0a8ec8bee", cluster_type: "OCP" },
+    })) as {
+      content?: Array<{ type: string; text: string }>;
+      structuredContent?: { events: unknown[]; total: number; dataSource: string; cluster_id: string };
+    };
+
+    assert.equal(eventsResult.content?.[0]?.type, "text");
+    const eventsSc = eventsResult.structuredContent;
+    assert.ok(Array.isArray(eventsSc?.events));
+    assert.ok(eventsSc!.events.length > 0);
+    assert.equal(typeof eventsSc!.total, "number");
+    assert.ok(["live", "mock"].includes(eventsSc!.dataSource));
+    assert.equal(eventsSc!.cluster_id, "762df996-acba-4a42-9fe9-edb0a8ec8bee");
+
+    // get_cluster_events rejects non-self-managed clusters
+    const eventsRosaResult = (await jsonRpc("tools/call", {
+      name: "get_cluster_events",
+      arguments: { cluster_id: "2o2gevtk4bohdu41ff4jps0dl8rrshb6", cluster_type: "ROSA" },
+    })) as { isError?: boolean; content?: Array<{ type: string; text: string }> };
+
+    assert.equal(eventsRosaResult.isError, true);
+    assert.ok(eventsRosaResult.content?.[0]?.text?.includes("self-managed"));
+
+    // get_cluster_logs_url returns URL for a self-managed cluster (mock)
+    const logsResult = (await jsonRpc("tools/call", {
+      name: "get_cluster_logs_url",
+      arguments: { cluster_id: "762df996-acba-4a42-9fe9-edb0a8ec8bee", cluster_type: "OCP" },
+    })) as {
+      content?: Array<{ type: string; text: string }>;
+      structuredContent?: { url: string; dataSource: string; cluster_id: string };
+    };
+
+    assert.equal(logsResult.content?.[0]?.type, "text");
+    const logsSc = logsResult.structuredContent;
+    assert.equal(typeof logsSc?.url, "string");
+    assert.ok(logsSc!.url.startsWith("http"));
+    assert.ok(["live", "mock"].includes(logsSc!.dataSource));
+
+    // get_cluster_logs_url rejects non-self-managed clusters
+    const logsRosaResult = (await jsonRpc("tools/call", {
+      name: "get_cluster_logs_url",
+      arguments: { cluster_id: "2o2gevtk4bohdu41ff4jps0dl8rrshb6", cluster_type: "ROSA" },
+    })) as { isError?: boolean; content?: Array<{ type: string; text: string }> };
+
+    assert.equal(logsRosaResult.isError, true);
+    assert.ok(logsRosaResult.content?.[0]?.text?.includes("self-managed"));
   } finally {
     srv.close();
   }

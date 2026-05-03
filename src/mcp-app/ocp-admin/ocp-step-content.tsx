@@ -1,4 +1,4 @@
-import type { ClusterDetailInfo, ClusterRow, DataSource, PrerequisiteCheckResult } from "./ocp-state";
+import type { ClusterDetailInfo, ClusterEvent, ClusterRow, DataSource, PrerequisiteCheckResult } from "./ocp-state";
 import { ActionButtonAdapter } from "../ui/action-button-adapter";
 
 type PrerequisitesContentProps = {
@@ -197,6 +197,13 @@ type ClusterDetailContentProps = {
   isLoading: boolean;
   dataSource: DataSource;
   onBack: () => void;
+  events: ClusterEvent[];
+  isLoadingEvents: boolean;
+  eventsDataSource: DataSource;
+  logsDownloadUrl: string | null;
+  isLoadingLogsUrl: boolean;
+  onLoadEvents: () => void;
+  onGetLogsUrl: () => void;
 };
 
 const DETAIL_FIELDS: Array<{ key: keyof ClusterDetailInfo; label: string; isLink?: boolean }> = [
@@ -220,7 +227,23 @@ const DETAIL_FIELDS: Array<{ key: keyof ClusterDetailInfo; label: string; isLink
   { key: "source", label: "Data Source" },
 ];
 
-export function ClusterDetailContent({ detail, isLoading, dataSource, onBack }: ClusterDetailContentProps) {
+const SEVERITY_COLORS: Record<string, { color: string; bg: string }> = {
+  info: { color: "#06c", bg: "#e7f1fa" },
+  warning: { color: "#795600", bg: "#fef6e0" },
+  error: { color: "#c9190b", bg: "#fce9e8" },
+  critical: { color: "#7d1007", bg: "#fce9e8" },
+};
+
+const SELF_MANAGED_TYPES = new Set(["OCP", "SNO"]);
+const MAX_DISPLAYED_EVENTS = 50;
+
+export function ClusterDetailContent({
+  detail, isLoading, dataSource, onBack,
+  events, isLoadingEvents, eventsDataSource, logsDownloadUrl, isLoadingLogsUrl,
+  onLoadEvents, onGetLogsUrl,
+}: ClusterDetailContentProps) {
+  const isSelfManaged = detail ? SELF_MANAGED_TYPES.has(detail.type) : false;
+
   return (
     <div className="rhds-step-form">
       <div style={{ marginBottom: "1rem" }}>
@@ -260,6 +283,88 @@ export function ClusterDetailContent({ detail, isLoading, dataSource, onBack }: 
               );
             })}
           </dl>
+
+          {isSelfManaged && (
+            <>
+              <hr style={{ margin: "1.5rem 0", border: "none", borderTop: "1px solid var(--rhds-border-subtle, #d2d2d2)" }} />
+
+              <h3 style={{ fontSize: "0.95rem", margin: "0 0 0.75rem" }}>Cluster Events</h3>
+
+              {events.length === 0 && !isLoadingEvents && (
+                <div style={{ marginBottom: "1rem" }}>
+                  <ActionButtonAdapter id="ocp-load-events" variant="secondary" onClick={onLoadEvents}>
+                    Load Events
+                  </ActionButtonAdapter>
+                </div>
+              )}
+
+              {isLoadingEvents && (
+                <p style={{ color: "var(--rhds-text-muted, #4f5255)", fontStyle: "italic", marginBottom: "1rem" }}>Loading events...</p>
+              )}
+
+              {events.length > 0 && (
+                <>
+                  <DataSourceBadge dataSource={eventsDataSource} />
+                  <p style={{ fontSize: "0.8rem", color: "var(--rhds-text-muted, #4f5255)", margin: "0 0 0.5rem" }}>
+                    Showing {Math.min(events.length, MAX_DISPLAYED_EVENTS)} of {events.length} event(s)
+                  </p>
+                  <ul style={{ margin: 0, padding: 0, listStyle: "none", fontSize: "0.8rem" }}>
+                    {events.slice(0, MAX_DISPLAYED_EVENTS).map((event, idx) => {
+                      const sev = SEVERITY_COLORS[event.severity] ?? SEVERITY_COLORS.info;
+                      return (
+                        <li key={idx} style={{ padding: "0.35rem 0.5rem", borderBottom: "1px solid var(--rhds-border-subtle, #d2d2d2)", display: "flex", gap: "0.5rem", alignItems: "baseline" }}>
+                          <span style={{ fontFamily: "monospace", color: "var(--rhds-text-muted, #4f5255)", whiteSpace: "nowrap", fontSize: "0.75rem" }}>
+                            {event.timestamp}
+                          </span>
+                          <span style={{ display: "inline-block", fontSize: "0.7rem", fontWeight: 600, padding: "0.1rem 0.4rem", borderRadius: "0.5rem", color: sev.color, backgroundColor: sev.bg, whiteSpace: "nowrap" }}>
+                            {event.severity.toUpperCase()}
+                          </span>
+                          <span>{event.message}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <div style={{ marginTop: "0.75rem" }}>
+                    <ActionButtonAdapter id="ocp-reload-events" variant="secondary" onClick={onLoadEvents}>
+                      Refresh Events
+                    </ActionButtonAdapter>
+                  </div>
+                </>
+              )}
+
+              <hr style={{ margin: "1.5rem 0", border: "none", borderTop: "1px solid var(--rhds-border-subtle, #d2d2d2)" }} />
+
+              <h3 style={{ fontSize: "0.95rem", margin: "0 0 0.75rem" }}>Cluster Logs</h3>
+
+              {!logsDownloadUrl && !isLoadingLogsUrl && (
+                <ActionButtonAdapter id="ocp-get-logs" variant="secondary" onClick={onGetLogsUrl}>
+                  Get Download Link
+                </ActionButtonAdapter>
+              )}
+
+              {isLoadingLogsUrl && (
+                <p style={{ color: "var(--rhds-text-muted, #4f5255)", fontStyle: "italic" }}>Generating download link...</p>
+              )}
+
+              {logsDownloadUrl && (
+                <div>
+                  <p style={{ margin: "0 0 0.5rem" }}>
+                    <a href={logsDownloadUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#06c" }}>
+                      Download cluster logs
+                    </a>
+                  </p>
+                  <p style={{ fontSize: "0.75rem", color: "var(--rhds-text-muted, #4f5255)", margin: 0 }}>
+                    This link may expire. Click "Get Download Link" again to generate a new one.
+                  </p>
+                  <div style={{ marginTop: "0.5rem" }}>
+                    <ActionButtonAdapter id="ocp-refresh-logs" variant="secondary" onClick={onGetLogsUrl}>
+                      Get New Link
+                    </ActionButtonAdapter>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </>
       )}
     </div>

@@ -13,8 +13,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { SubscribeRequestSchema, UnsubscribeRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import { listClusters, checkConnectivity, isPodmanAvailable, getClusterInfo } from "./src/mcp-client/ocp-mcp-client.js";
-import type { ClusterDetailInfo } from "./src/mcp-client/ocp-mcp-client.js";
+import { listClusters, checkConnectivity, isPodmanAvailable, getClusterInfo, getClusterEvents, getClusterLogsUrl } from "./src/mcp-client/ocp-mcp-client.js";
+import type { ClusterDetailInfo, ClusterEvent } from "./src/mcp-client/ocp-mcp-client.js";
 import { JiraAuthContext, JiraClient } from "./src/jira/jira-client.js";
 import {
   attachArtifactSchema,
@@ -815,6 +815,40 @@ const OCP_MOCK_CLUSTER_DETAILS: Record<string, ClusterDetailInfo> = {
   "8e5d3e45-77c6-440b-9cfa-9f88187535c6": { name: "edge-01", id: "8e5d3e45-77c6-440b-9cfa-9f88187535c6", status: "pending-for-input", type: "SNO", version: "4.21.0", provider: "Self-managed", region: "-", created_at: "2026-04-29T16:00:00Z", host_count: 1, network_type: "OVNKubernetes", cluster_network_cidr: "10.128.0.0/14", service_network_cidr: "172.30.0.0/16", platform_type: "none", dns_domain: "edge-01.lab.example.com", source: "openshift-self-managed" },
 };
 
+const SELF_MANAGED_CLUSTER_TYPES = new Set(["OCP", "SNO"]);
+
+const OCP_MOCK_CLUSTER_EVENTS: Record<string, ClusterEvent[]> = {
+  "762df996-acba-4a42-9fe9-edb0a8ec8bee": [
+    { timestamp: "2026-04-28T10:15:00Z", severity: "info", message: "Cluster registration started", category: "cluster" },
+    { timestamp: "2026-04-28T10:16:30Z", severity: "info", message: "Host host-0 registered successfully", category: "host" },
+    { timestamp: "2026-04-28T10:16:45Z", severity: "info", message: "Host host-1 registered successfully", category: "host" },
+    { timestamp: "2026-04-28T10:17:00Z", severity: "info", message: "Host host-2 registered successfully", category: "host" },
+    { timestamp: "2026-04-28T10:20:00Z", severity: "info", message: "API VIP verification in progress", category: "network" },
+    { timestamp: "2026-04-28T10:25:00Z", severity: "info", message: "Installation started", category: "cluster" },
+    { timestamp: "2026-04-28T10:45:00Z", severity: "warning", message: "Host host-1 disk speed is below recommended threshold", category: "host" },
+    { timestamp: "2026-04-28T11:00:00Z", severity: "info", message: "Bootstrap control plane initialized", category: "cluster" },
+  ],
+  "a1b2c3d4-e5f6-4789-a0b1-c2d3e4f5a6b7": [
+    { timestamp: "2026-03-15T08:30:00Z", severity: "info", message: "Cluster registration started", category: "cluster" },
+    { timestamp: "2026-03-15T08:32:00Z", severity: "info", message: "3 hosts registered", category: "host" },
+    { timestamp: "2026-03-15T08:40:00Z", severity: "info", message: "Network validation passed", category: "network" },
+    { timestamp: "2026-03-15T09:00:00Z", severity: "info", message: "Installation started", category: "cluster" },
+    { timestamp: "2026-03-15T09:45:00Z", severity: "info", message: "Installation completed successfully", category: "cluster" },
+    { timestamp: "2026-03-15T09:46:00Z", severity: "info", message: "Console URL available", category: "cluster" },
+  ],
+  "8e5d3e45-77c6-440b-9cfa-9f88187535c6": [
+    { timestamp: "2026-04-29T16:00:00Z", severity: "info", message: "SNO cluster registration started", category: "cluster" },
+    { timestamp: "2026-04-29T16:01:00Z", severity: "info", message: "Host edge-host-0 registered", category: "host" },
+    { timestamp: "2026-04-29T16:05:00Z", severity: "warning", message: "Waiting for user input: network configuration required", category: "network" },
+  ],
+};
+
+const OCP_MOCK_LOGS_URLS: Record<string, string> = {
+  "762df996-acba-4a42-9fe9-edb0a8ec8bee": "https://assisted-logs.example.com/clusters/762df996/logs.tar.gz?token=mock-token&expires=3600",
+  "a1b2c3d4-e5f6-4789-a0b1-c2d3e4f5a6b7": "https://assisted-logs.example.com/clusters/a1b2c3d4/logs.tar.gz?token=mock-token&expires=3600",
+  "8e5d3e45-77c6-440b-9cfa-9f88187535c6": "https://assisted-logs.example.com/clusters/8e5d3e45/logs.tar.gz?token=mock-token&expires=3600",
+};
+
 const SKILL_LOADERS: Record<string, () => Promise<string>> = {
   [ENGAGE_SKILL_RESOURCE_URI]: loadEngageSkillMarkdown,
   [OCP_ADMIN_SKILL_RESOURCE_URI]: loadOcpAdminSkillMarkdown,
@@ -1415,6 +1449,122 @@ registerAppTool(
     return {
       content: [{ type: "text", text: lines.join("\n") }],
       structuredContent: { ...detail, dataSource },
+    };
+  },
+);
+
+registerAppTool(
+  server,
+  "get_cluster_events",
+  {
+    title: "Get Cluster Events",
+    description: "Returns event history for a self-managed OpenShift cluster (OCP/SNO only).",
+    inputSchema: z.object({
+      cluster_id: z.string().min(1),
+      cluster_type: z.string().min(1),
+    }),
+    annotations: {
+      readOnlyHint: true,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+    _meta: {
+      ui: { resourceUri: ocpAdminResourceUri },
+      "openai/outputTemplate": ocpAdminResourceUri,
+      "openai/widgetAccessible": true,
+    },
+  },
+  async (args: { cluster_id: string; cluster_type: string }) => {
+    if (!SELF_MANAGED_CLUSTER_TYPES.has(args.cluster_type)) {
+      return {
+        isError: true,
+        content: [{ type: "text", text: "Events are only available for self-managed clusters (OCP/SNO)." }],
+      };
+    }
+
+    const result = await getClusterEvents(args.cluster_id);
+
+    let events: ClusterEvent[];
+    let dataSource: "live" | "mock";
+
+    if (result.ok === true) {
+      events = [...result.events];
+      dataSource = result.dataSource;
+    } else {
+      const mockEvents = OCP_MOCK_CLUSTER_EVENTS[args.cluster_id];
+      if (mockEvents) {
+        events = mockEvents;
+        dataSource = "mock";
+      } else {
+        events = [];
+        dataSource = "mock";
+      }
+    }
+
+    const lines = events.map(
+      (e) => `[${e.timestamp}] ${e.severity.toUpperCase()}: ${e.message}`,
+    );
+
+    return {
+      content: [{ type: "text", text: lines.length > 0 ? lines.join("\n") : "No events found." }],
+      structuredContent: { events, total: events.length, dataSource, cluster_id: args.cluster_id },
+    };
+  },
+);
+
+registerAppTool(
+  server,
+  "get_cluster_logs_url",
+  {
+    title: "Get Cluster Logs Download URL",
+    description: "Returns a download URL for cluster logs of a self-managed OpenShift cluster (OCP/SNO only).",
+    inputSchema: z.object({
+      cluster_id: z.string().min(1),
+      cluster_type: z.string().min(1),
+    }),
+    annotations: {
+      readOnlyHint: true,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+    _meta: {
+      ui: { resourceUri: ocpAdminResourceUri },
+      "openai/outputTemplate": ocpAdminResourceUri,
+      "openai/widgetAccessible": true,
+    },
+  },
+  async (args: { cluster_id: string; cluster_type: string }) => {
+    if (!SELF_MANAGED_CLUSTER_TYPES.has(args.cluster_type)) {
+      return {
+        isError: true,
+        content: [{ type: "text", text: "Logs download is only available for self-managed clusters (OCP/SNO)." }],
+      };
+    }
+
+    const result = await getClusterLogsUrl(args.cluster_id);
+
+    let url: string;
+    let dataSource: "live" | "mock";
+
+    if (result.ok === true) {
+      url = result.url;
+      dataSource = result.dataSource;
+    } else {
+      const mockUrl = OCP_MOCK_LOGS_URLS[args.cluster_id];
+      if (mockUrl) {
+        url = mockUrl;
+        dataSource = "mock";
+      } else {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `Logs not available for cluster: ${args.cluster_id}` }],
+        };
+      }
+    }
+
+    return {
+      content: [{ type: "text", text: `Logs download URL: ${url}\nNote: This link may expire. Generate a new one if needed.` }],
+      structuredContent: { url, dataSource, cluster_id: args.cluster_id },
     };
   },
 );

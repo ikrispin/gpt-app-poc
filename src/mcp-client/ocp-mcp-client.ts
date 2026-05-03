@@ -44,6 +44,21 @@ export type ClusterDetailResult =
   | { ok: true; detail: ClusterDetailInfo; dataSource: "live" }
   | { ok: false; error: string };
 
+export type ClusterEvent = {
+  readonly timestamp: string;
+  readonly severity: string;
+  readonly message: string;
+  readonly category?: string;
+};
+
+export type ClusterEventsResult =
+  | { readonly ok: true; readonly events: readonly ClusterEvent[]; readonly dataSource: "live" }
+  | { readonly ok: false; readonly error: string };
+
+export type ClusterLogsUrlResult =
+  | { readonly ok: true; readonly url: string; readonly expires_at?: string; readonly dataSource: "live" }
+  | { readonly ok: false; readonly error: string };
+
 export type ServerConnectivityStatus = {
   readonly name: string;
   readonly status: "connected" | "not_connected" | "error";
@@ -375,6 +390,110 @@ function extractCidr(value: unknown): string | undefined {
     if (typeof first === "string") return first;
   }
   return undefined;
+}
+
+export async function getClusterEvents(clusterId: string): Promise<ClusterEventsResult> {
+  const config = SERVER_CONFIGS[0]; // events only available on self-managed server
+
+  try {
+    const client = unwrapConnection(await ensureConnection(config));
+    try {
+      const toolResult = await client.callTool({ name: "cluster_events", arguments: { cluster_id: clusterId } });
+      const textContent = toolResult.content as Array<{ type: string; text: string }>;
+      const text = textContent.find((c) => c.type === "text")?.text ?? "";
+      return { ok: true, events: parseClusterEventsResponse(text), dataSource: "live" };
+    } catch {
+      const retriedClient = unwrapConnection(await reconnect(config));
+      const toolResult = await retriedClient.callTool({ name: "cluster_events", arguments: { cluster_id: clusterId } });
+      const textContent = toolResult.content as Array<{ type: string; text: string }>;
+      const text = textContent.find((c) => c.type === "text")?.text ?? "";
+      return { ok: true, events: parseClusterEventsResponse(text), dataSource: "live" };
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { ok: false, error: message };
+  }
+}
+
+export async function getClusterLogsUrl(clusterId: string): Promise<ClusterLogsUrlResult> {
+  const config = SERVER_CONFIGS[0]; // logs only available on self-managed server
+
+  try {
+    const client = unwrapConnection(await ensureConnection(config));
+    try {
+      const toolResult = await client.callTool({ name: "cluster_logs_download_url", arguments: { cluster_id: clusterId } });
+      const textContent = toolResult.content as Array<{ type: string; text: string }>;
+      const text = textContent.find((c) => c.type === "text")?.text ?? "".trim();
+      return parseLogsUrlResponse(text);
+    } catch {
+      const retriedClient = unwrapConnection(await reconnect(config));
+      const toolResult = await retriedClient.callTool({ name: "cluster_logs_download_url", arguments: { cluster_id: clusterId } });
+      const textContent = toolResult.content as Array<{ type: string; text: string }>;
+      const text = textContent.find((c) => c.type === "text")?.text ?? "".trim();
+      return parseLogsUrlResponse(text);
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { ok: false, error: message };
+  }
+}
+
+function parseClusterEventsResponse(text: string): ClusterEvent[] {
+  const events: ClusterEvent[] = [];
+
+  try {
+    const parsed: unknown = JSON.parse(text);
+    const items = Array.isArray(parsed) ? parsed : [parsed];
+
+    for (const item of items) {
+      if (item && typeof item === "object") {
+        const obj = item as Record<string, unknown>;
+        events.push({
+          timestamp: String(obj.event_time ?? obj.timestamp ?? obj.created_at ?? ""),
+          severity: String(obj.severity ?? obj.level ?? "info"),
+          message: String(obj.message ?? obj.event ?? ""),
+          category: obj.category ? String(obj.category) : undefined,
+        });
+      }
+    }
+  } catch {
+    const lines = text.split("\n").filter((l) => l.trim().length > 0);
+    for (const line of lines) {
+      try {
+        const obj = JSON.parse(line) as Record<string, unknown>;
+        events.push({
+          timestamp: String(obj.event_time ?? obj.timestamp ?? obj.created_at ?? ""),
+          severity: String(obj.severity ?? obj.level ?? "info"),
+          message: String(obj.message ?? obj.event ?? ""),
+          category: obj.category ? String(obj.category) : undefined,
+        });
+      } catch {
+        // skip unparseable lines
+      }
+    }
+  }
+
+  return events;
+}
+
+function parseLogsUrlResponse(text: string): ClusterLogsUrlResult {
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (parsed && typeof parsed === "object") {
+      const obj = parsed as Record<string, unknown>;
+      const url = String(obj.url ?? obj.logs_url ?? obj.download_url ?? "");
+      if (url) {
+        return { ok: true, url, expires_at: obj.expires_at ? String(obj.expires_at) : undefined, dataSource: "live" };
+      }
+    }
+  } catch {
+    // text might be a raw URL
+    const trimmed = text.trim();
+    if (trimmed.startsWith("http")) {
+      return { ok: true, url: trimmed, dataSource: "live" };
+    }
+  }
+  return { ok: false, error: "Failed to parse logs download URL" };
 }
 
 export async function getClusterInfo(clusterId: string, clusterType: string): Promise<ClusterDetailResult> {

@@ -53,6 +53,13 @@ export type ClusterDetailInfo = {
   dataSource?: string;
 };
 
+export type ClusterEvent = {
+  timestamp: string;
+  severity: string;
+  message: string;
+  category?: string;
+};
+
 export type OcpAdminUiState = {
   statusMessage: string;
   statusVariant: StatusVariant;
@@ -63,4 +70,9 @@ export type OcpAdminUiState = {
   selectedClusterId: string | null;
   clusterDetail: ClusterDetailInfo | null;
   isLoadingDetail: boolean;
+  events: ClusterEvent[];
+  isLoadingEvents: boolean;
+  logsDownloadUrl: string | null;
+  isLoadingLogsUrl: boolean;
+  eventsDataSource: DataSource;
 };

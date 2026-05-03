@@ -1,4 +1,4 @@
-import type { ClusterDetailInfo, ClusterRow, DataSource, OcpAdminStep, PrerequisiteCheckResult, StatusVariant } from "./ocp-state";
+import type { ClusterDetailInfo, ClusterEvent, ClusterRow, DataSource, OcpAdminStep, PrerequisiteCheckResult, StatusVariant } from "./ocp-state";
 import { StatusDisplayAdapter } from "../ui/status-display-adapter";
 import { PrerequisitesContent, ClusterInventoryContent, ClusterDetailContent } from "./ocp-step-content";
 
@@ -13,12 +13,19 @@ type OcpAdminAppProps = {
   selectedClusterId: string | null;
   clusterDetail: ClusterDetailInfo | null;
   isLoadingDetail: boolean;
+  events: ClusterEvent[];
+  isLoadingEvents: boolean;
+  eventsDataSource: DataSource;
+  logsDownloadUrl: string | null;
+  isLoadingLogsUrl: boolean;
   onNavigatePrerequisites: () => void;
   onNavigateInventory: () => void;
   onLoadClusters: () => void;
   onCheckPrerequisites: () => void;
   onSelectCluster: (clusterId: string) => void;
   onBackToInventory: () => void;
+  onLoadEvents: () => void;
+  onGetLogsUrl: () => void;
 };
 
 export function OcpAdminApp({
@@ -32,12 +39,19 @@ export function OcpAdminApp({
   selectedClusterId,
   clusterDetail,
   isLoadingDetail,
+  events,
+  isLoadingEvents,
+  eventsDataSource,
+  logsDownloadUrl,
+  isLoadingLogsUrl,
   onNavigatePrerequisites,
   onNavigateInventory,
   onLoadClusters,
   onCheckPrerequisites,
   onSelectCluster,
   onBackToInventory,
+  onLoadEvents,
+  onGetLogsUrl,
 }: OcpAdminAppProps) {
   return (
     <div className="rhds-shell">
@@ -82,6 +96,13 @@ export function OcpAdminApp({
               isLoading={isLoadingDetail}
               dataSource={dataSource}
               onBack={onBackToInventory}
+              events={events}
+              isLoadingEvents={isLoadingEvents}
+              eventsDataSource={eventsDataSource}
+              logsDownloadUrl={logsDownloadUrl}
+              isLoadingLogsUrl={isLoadingLogsUrl}
+              onLoadEvents={onLoadEvents}
+              onGetLogsUrl={onGetLogsUrl}
             />
           )}
           {currentStep === "cluster_inventory" && selectedClusterId === null && (

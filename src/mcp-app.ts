@@ -7,7 +7,7 @@ import "./mcp-app/rhds-step0.css";
 import { EngageWorkflowApp } from "./mcp-app/App";
 import type { CpuTelemetryRow, FormState, StatusVariant, UiState, WorkflowState, WorkflowStep } from "./mcp-app/state";
 import { OcpAdminApp } from "./mcp-app/ocp-admin/OcpAdminApp";
-import type { OcpAdminStep, OcpAdminUiState, OcpAdminWorkflowState, PrerequisiteCheckResult, ClusterRow, DataSource, ClusterDetailInfo } from "./mcp-app/ocp-admin/ocp-state";
+import type { OcpAdminStep, OcpAdminUiState, OcpAdminWorkflowState, PrerequisiteCheckResult, ClusterRow, ClusterEvent, DataSource, ClusterDetailInfo } from "./mcp-app/ocp-admin/ocp-state";
 
 type ToolTextContent = { type: string; text?: string };
 type ToolResult = {
@@ -974,6 +974,11 @@ if (detectedWorkflow === "ocp-admin") {
     selectedClusterId: null,
     clusterDetail: null,
     isLoadingDetail: false,
+    events: [],
+    isLoadingEvents: false,
+    logsDownloadUrl: null,
+    isLoadingLogsUrl: false,
+    eventsDataSource: null,
   };
 
   const setOcpStatus = (message: string, variant: OcpAdminUiState["statusVariant"]) => {
@@ -1073,7 +1078,67 @@ if (detectedWorkflow === "ocp-admin") {
     ocpUiState.selectedClusterId = null;
     ocpUiState.clusterDetail = null;
     ocpUiState.isLoadingDetail = false;
+    ocpUiState.events = [];
+    ocpUiState.isLoadingEvents = false;
+    ocpUiState.logsDownloadUrl = null;
+    ocpUiState.isLoadingLogsUrl = false;
+    ocpUiState.eventsDataSource = null;
     setOcpStatus("", "info");
+    ocpRender();
+  };
+
+  const onLoadEvents = async () => {
+    const cluster = ocpUiState.clusters.find((c) => c.id === ocpUiState.selectedClusterId);
+    if (!cluster) return;
+
+    ocpUiState.isLoadingEvents = true;
+    ocpUiState.events = [];
+    ocpRender();
+
+    const result = await ocpCallTool("get_cluster_events", {
+      cluster_id: cluster.id,
+      cluster_type: cluster.type,
+    });
+
+    if (result.isError) {
+      ocpUiState.isLoadingEvents = false;
+      setOcpStatus("Failed to load cluster events.", "danger");
+      ocpRender();
+      return;
+    }
+
+    const structured = result.structuredContent ?? {};
+    ocpUiState.events = (structured.events ?? []) as ClusterEvent[];
+    ocpUiState.eventsDataSource = (structured.dataSource as DataSource) ?? "mock";
+    ocpUiState.isLoadingEvents = false;
+    setOcpStatus(`Loaded ${ocpUiState.events.length} event(s).`, "success");
+    ocpRender();
+  };
+
+  const onGetLogsUrl = async () => {
+    const cluster = ocpUiState.clusters.find((c) => c.id === ocpUiState.selectedClusterId);
+    if (!cluster) return;
+
+    ocpUiState.isLoadingLogsUrl = true;
+    ocpUiState.logsDownloadUrl = null;
+    ocpRender();
+
+    const result = await ocpCallTool("get_cluster_logs_url", {
+      cluster_id: cluster.id,
+      cluster_type: cluster.type,
+    });
+
+    if (result.isError) {
+      ocpUiState.isLoadingLogsUrl = false;
+      setOcpStatus("Failed to get logs download URL.", "danger");
+      ocpRender();
+      return;
+    }
+
+    const structured = result.structuredContent ?? {};
+    ocpUiState.logsDownloadUrl = String(structured.url ?? "");
+    ocpUiState.isLoadingLogsUrl = false;
+    setOcpStatus("Logs download link ready.", "success");
     ocpRender();
   };
 
@@ -1090,12 +1155,19 @@ if (detectedWorkflow === "ocp-admin") {
         selectedClusterId: ocpUiState.selectedClusterId,
         clusterDetail: ocpUiState.clusterDetail,
         isLoadingDetail: ocpUiState.isLoadingDetail,
+        events: ocpUiState.events,
+        isLoadingEvents: ocpUiState.isLoadingEvents,
+        eventsDataSource: ocpUiState.eventsDataSource,
+        logsDownloadUrl: ocpUiState.logsDownloadUrl,
+        isLoadingLogsUrl: ocpUiState.isLoadingLogsUrl,
         onNavigatePrerequisites: () => setOcpAdminStep("prerequisites"),
         onNavigateInventory: () => setOcpAdminStep("cluster_inventory"),
         onLoadClusters,
         onCheckPrerequisites,
         onSelectCluster,
         onBackToInventory,
+        onLoadEvents,
+        onGetLogsUrl,
       }),
     );
   };
