@@ -1,4 +1,4 @@
-export type OcpAdminStep = "prerequisites" | "cluster_inventory" | "cluster_creator";
+export type OcpAdminStep = "prerequisites" | "cluster_inventory" | "cluster_creator" | "cluster_setup";
 
 export type OcpAdminWorkflowState = {
   current_step: OcpAdminStep;
@@ -75,6 +75,13 @@ export type ClusterCreationResult = {
   dataSource: DataSource;
 };
 
+export type HostInfo = {
+  id: string;
+  hostname: string;
+  status: string;
+  role: string;
+};
+
 export type OcpAdminUiState = {
   statusMessage: string;
   statusVariant: StatusVariant;
@@ -94,4 +101,11 @@ export type OcpAdminUiState = {
   isCreating: boolean;
   creationResult: ClusterCreationResult | null;
   creationError: string | null;
+  setupClusterId: string | null;
+  hosts: HostInfo[];
+  isLoadingHosts: boolean;
+  discoveryIsoUrl: string | null;
+  apiVip: string;
+  ingressVip: string;
+  hostsDataSource: DataSource;
 };

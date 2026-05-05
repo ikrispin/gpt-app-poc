@@ -1,4 +1,4 @@
-import type { ClusterCreationResult, ClusterCreatorFormState, ClusterDetailInfo, ClusterEvent, ClusterRow, DataSource, PrerequisiteCheckResult } from "./ocp-state";
+import type { ClusterCreationResult, ClusterCreatorFormState, ClusterDetailInfo, ClusterEvent, ClusterRow, DataSource, HostInfo, PrerequisiteCheckResult } from "./ocp-state";
 import { ActionButtonAdapter } from "../ui/action-button-adapter";
 import { TextInputAdapter } from "../ui/text-input-adapter";
 import { SelectAdapter } from "../ui/select-adapter";
@@ -383,6 +383,7 @@ type ClusterCreatorContentProps = {
   onFieldChange: (field: string, value: string) => void;
   onSubmit: () => void;
   onBackToInventory: () => void;
+  onNavigateSetup: (clusterId: string) => void;
 };
 
 const VERSION_OPTIONS = [
@@ -403,7 +404,7 @@ const NETWORK_TYPE_OPTIONS = [
 
 export function ClusterCreatorContent({
   formState, isCreating, creationResult, creationError,
-  onFieldChange, onSubmit, onBackToInventory,
+  onFieldChange, onSubmit, onBackToInventory, onNavigateSetup,
 }: ClusterCreatorContentProps) {
   if (creationResult) {
     return (
@@ -427,12 +428,17 @@ export function ClusterCreatorContent({
         </dl>
 
         <p style={{ fontSize: "0.85rem", color: "var(--rhds-text-muted, #4f5255)", marginBottom: "1rem" }}>
-          The cluster has been created and is waiting for host registration. View it in the Cluster Inventory to continue setup.
+          The cluster has been created and is waiting for host registration. Continue to setup to register hosts and configure networking.
         </p>
 
-        <ActionButtonAdapter id="ocp-creator-to-inventory" variant="primary" onClick={onBackToInventory}>
-          View in Inventory
-        </ActionButtonAdapter>
+        <div style={{ display: "flex", gap: "0.75rem" }}>
+          <ActionButtonAdapter id="ocp-creator-to-setup" variant="primary" onClick={() => onNavigateSetup(creationResult.clusterId)}>
+            Continue to Setup
+          </ActionButtonAdapter>
+          <ActionButtonAdapter id="ocp-creator-to-inventory" variant="secondary" onClick={onBackToInventory}>
+            View in Inventory
+          </ActionButtonAdapter>
+        </div>
       </div>
     );
   }
@@ -506,6 +512,171 @@ export function ClusterCreatorContent({
           Back
         </ActionButtonAdapter>
       </div>
+    </div>
+  );
+}
+
+// --- Cluster Setup (Host Registration & VIPs) ---
+
+type ClusterSetupContentProps = {
+  setupClusterId: string | null;
+  hosts: HostInfo[];
+  isLoadingHosts: boolean;
+  discoveryIsoUrl: string | null;
+  apiVip: string;
+  ingressVip: string;
+  hostsDataSource: DataSource;
+  onLoadHosts: () => void;
+  onSetHostRole: (hostId: string, role: string) => void;
+  onSetVips: () => void;
+  onVipFieldChange: (field: string, value: string) => void;
+  onBackToInventory: () => void;
+};
+
+const ROLE_OPTIONS = [
+  { value: "auto-assign", label: "Auto-assign" },
+  { value: "master", label: "Control Plane (master)" },
+  { value: "worker", label: "Worker" },
+];
+
+export function ClusterSetupContent({
+  setupClusterId, hosts, isLoadingHosts, discoveryIsoUrl, apiVip, ingressVip, hostsDataSource,
+  onLoadHosts, onSetHostRole, onSetVips, onVipFieldChange, onBackToInventory,
+}: ClusterSetupContentProps) {
+  if (!setupClusterId) {
+    return (
+      <div className="rhds-step-form">
+        <h2 className="rhds-step-form__heading">Cluster Setup</h2>
+        <p style={{ color: "var(--rhds-text-muted, #4f5255)" }}>No cluster selected for setup. Create a cluster first or select one from the inventory.</p>
+        <ActionButtonAdapter id="ocp-setup-back" variant="secondary" onClick={onBackToInventory}>
+          Back to Inventory
+        </ActionButtonAdapter>
+      </div>
+    );
+  }
+
+  const rolesAssigned = hosts.filter((h) => h.role !== "auto-assign").length;
+  const vipsConfigured = apiVip.trim().length > 0 && ingressVip.trim().length > 0;
+
+  return (
+    <div className="rhds-step-form">
+      <div style={{ marginBottom: "1rem" }}>
+        <ActionButtonAdapter id="ocp-setup-back" variant="secondary" onClick={onBackToInventory}>
+          Back to Inventory
+        </ActionButtonAdapter>
+      </div>
+
+      <h2 className="rhds-step-form__heading">Cluster Setup</h2>
+      <p style={{ fontSize: "0.85rem", color: "var(--rhds-text-muted, #4f5255)", marginBottom: "0.5rem" }}>
+        Cluster ID: <code style={{ fontSize: "0.8rem" }}>{setupClusterId}</code>
+      </p>
+      <DataSourceBadge dataSource={hostsDataSource} />
+
+      <p style={{ fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.25rem" }}>
+        Status: {hosts.length} host(s) registered, {rolesAssigned} role(s) assigned, VIPs: {vipsConfigured ? "configured" : "not configured"}
+      </p>
+
+      {discoveryIsoUrl && (
+        <div style={{ marginBottom: "1.5rem" }}>
+          <h3 style={{ fontSize: "0.95rem", margin: "1rem 0 0.5rem" }}>Discovery ISO</h3>
+          <p style={{ fontSize: "0.85rem" }}>
+            Boot hosts from this ISO to register them with the cluster:{" "}
+            <a href={discoveryIsoUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#06c" }}>Download ISO</a>
+          </p>
+        </div>
+      )}
+
+      <hr style={{ margin: "1rem 0", border: "none", borderTop: "1px solid var(--rhds-border-subtle, #d2d2d2)" }} />
+
+      <h3 style={{ fontSize: "0.95rem", margin: "0 0 0.75rem" }}>Registered Hosts</h3>
+
+      {hosts.length === 0 && !isLoadingHosts && (
+        <div style={{ marginBottom: "1rem" }}>
+          <p style={{ color: "var(--rhds-text-muted, #4f5255)", marginBottom: "0.5rem" }}>No hosts registered yet. Boot hosts from the discovery ISO, then refresh.</p>
+          <ActionButtonAdapter id="ocp-load-hosts" variant="secondary" onClick={onLoadHosts}>
+            Load Hosts
+          </ActionButtonAdapter>
+        </div>
+      )}
+
+      {isLoadingHosts && (
+        <p style={{ color: "var(--rhds-text-muted, #4f5255)", fontStyle: "italic", marginBottom: "1rem" }}>Loading hosts...</p>
+      )}
+
+      {hosts.length > 0 && (
+        <>
+          <div style={{ overflowX: "auto", marginBottom: "1rem" }}>
+            <table className="rhds-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: "left", padding: "0.5rem", borderBottom: "2px solid var(--rhds-border-subtle, #d2d2d2)" }}>Hostname</th>
+                  <th style={{ textAlign: "left", padding: "0.5rem", borderBottom: "2px solid var(--rhds-border-subtle, #d2d2d2)" }}>Status</th>
+                  <th style={{ textAlign: "left", padding: "0.5rem", borderBottom: "2px solid var(--rhds-border-subtle, #d2d2d2)" }}>Role</th>
+                  <th style={{ textAlign: "left", padding: "0.5rem", borderBottom: "2px solid var(--rhds-border-subtle, #d2d2d2)" }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {hosts.map((host) => (
+                  <tr key={host.id}>
+                    <td style={{ padding: "0.5rem", borderBottom: "1px solid var(--rhds-border-subtle, #d2d2d2)" }}>{host.hostname}</td>
+                    <td style={{ padding: "0.5rem", borderBottom: "1px solid var(--rhds-border-subtle, #d2d2d2)" }}>{host.status}</td>
+                    <td style={{ padding: "0.5rem", borderBottom: "1px solid var(--rhds-border-subtle, #d2d2d2)" }}>
+                      <select
+                        className="rhds-input"
+                        value={host.role}
+                        onChange={(e) => onSetHostRole(host.id, e.target.value)}
+                        style={{ fontSize: "0.8rem", padding: "0.2rem 0.4rem" }}
+                      >
+                        {ROLE_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td style={{ padding: "0.5rem", borderBottom: "1px solid var(--rhds-border-subtle, #d2d2d2)" }}>
+                      <span style={{ fontSize: "0.75rem", color: host.role !== "auto-assign" ? "#3e8635" : "var(--rhds-text-muted, #4f5255)" }}>
+                        {host.role !== "auto-assign" ? "Assigned" : "Pending"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <ActionButtonAdapter id="ocp-refresh-hosts" variant="secondary" onClick={onLoadHosts}>
+            Refresh Hosts
+          </ActionButtonAdapter>
+        </>
+      )}
+
+      <hr style={{ margin: "1.5rem 0", border: "none", borderTop: "1px solid var(--rhds-border-subtle, #d2d2d2)" }} />
+
+      <h3 style={{ fontSize: "0.95rem", margin: "0 0 0.75rem" }}>Virtual IPs</h3>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginBottom: "1rem" }}>
+        <TextInputAdapter
+          id="api-vip"
+          label="API VIP"
+          value={apiVip}
+          placeholder="e.g. 192.168.1.100"
+          onChange={(v) => onVipFieldChange("apiVip", v)}
+        />
+        <TextInputAdapter
+          id="ingress-vip"
+          label="Ingress VIP"
+          value={ingressVip}
+          placeholder="e.g. 192.168.1.101"
+          onChange={(v) => onVipFieldChange("ingressVip", v)}
+        />
+      </div>
+
+      <ActionButtonAdapter
+        id="ocp-set-vips"
+        variant="primary"
+        isDisabled={!apiVip.trim() || !ingressVip.trim()}
+        onClick={onSetVips}
+      >
+        Set VIPs
+      </ActionButtonAdapter>
     </div>
   );
 }

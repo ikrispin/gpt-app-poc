@@ -7,7 +7,7 @@ import "./mcp-app/rhds-step0.css";
 import { EngageWorkflowApp } from "./mcp-app/App";
 import type { CpuTelemetryRow, FormState, StatusVariant, UiState, WorkflowState, WorkflowStep } from "./mcp-app/state";
 import { OcpAdminApp } from "./mcp-app/ocp-admin/OcpAdminApp";
-import type { OcpAdminStep, OcpAdminUiState, OcpAdminWorkflowState, PrerequisiteCheckResult, ClusterRow, ClusterEvent, ClusterCreatorFormState, ClusterCreationResult, DataSource, ClusterDetailInfo } from "./mcp-app/ocp-admin/ocp-state";
+import type { OcpAdminStep, OcpAdminUiState, OcpAdminWorkflowState, PrerequisiteCheckResult, ClusterRow, ClusterEvent, ClusterCreatorFormState, ClusterCreationResult, HostInfo, DataSource, ClusterDetailInfo } from "./mcp-app/ocp-admin/ocp-state";
 
 type ToolTextContent = { type: string; text?: string };
 type ToolResult = {
@@ -989,6 +989,13 @@ if (detectedWorkflow === "ocp-admin") {
     isCreating: false,
     creationResult: null,
     creationError: null,
+    setupClusterId: null,
+    hosts: [],
+    isLoadingHosts: false,
+    discoveryIsoUrl: null,
+    apiVip: "",
+    ingressVip: "",
+    hostsDataSource: null,
   };
 
   const setOcpStatus = (message: string, variant: OcpAdminUiState["statusVariant"]) => {
@@ -1001,6 +1008,7 @@ if (detectedWorkflow === "ocp-admin") {
     if (step === "prerequisites") window.location.hash = "step-1";
     else if (step === "cluster_inventory") window.location.hash = "step-2";
     else if (step === "cluster_creator") window.location.hash = "step-3";
+    else if (step === "cluster_setup") window.location.hash = "step-4";
     ocpRender();
   };
 
@@ -1195,6 +1203,96 @@ if (detectedWorkflow === "ocp-admin") {
     ocpRender();
   };
 
+  const onNavigateSetup = (clusterId: string) => {
+    if (clusterId) {
+      ocpUiState.setupClusterId = clusterId;
+    }
+    setOcpAdminStep("cluster_setup");
+    if (ocpUiState.hosts.length === 0 && ocpUiState.setupClusterId) {
+      void onLoadHosts();
+    }
+  };
+
+  const onLoadHosts = async () => {
+    if (!ocpUiState.setupClusterId) return;
+
+    ocpUiState.isLoadingHosts = true;
+    ocpUiState.hosts = [];
+    ocpRender();
+
+    const result = await ocpCallTool("get_cluster_hosts", {
+      cluster_id: ocpUiState.setupClusterId,
+    });
+
+    ocpUiState.isLoadingHosts = false;
+
+    if (result.isError) {
+      setOcpStatus("Failed to load hosts.", "danger");
+      ocpRender();
+      return;
+    }
+
+    const structured = result.structuredContent ?? {};
+    ocpUiState.hosts = (structured.hosts ?? []) as HostInfo[];
+    ocpUiState.discoveryIsoUrl = structured.discoveryIsoUrl ? String(structured.discoveryIsoUrl) : null;
+    ocpUiState.hostsDataSource = (structured.dataSource as DataSource) ?? "mock";
+    setOcpStatus(`Loaded ${ocpUiState.hosts.length} host(s).`, "success");
+    ocpRender();
+  };
+
+  const onSetHostRole = async (hostId: string, role: string) => {
+    if (!ocpUiState.setupClusterId) return;
+
+    setOcpStatus(`Setting role for host...`, "info");
+    ocpRender();
+
+    const result = await ocpCallTool("set_host_role", {
+      cluster_id: ocpUiState.setupClusterId,
+      host_id: hostId,
+      role,
+    });
+
+    if (result.isError) {
+      setOcpStatus("Failed to set host role.", "danger");
+      ocpRender();
+      return;
+    }
+
+    ocpUiState.hosts = ocpUiState.hosts.map((h) =>
+      h.id === hostId ? { ...h, role } : h,
+    );
+    setOcpStatus(`Host role set to ${role}.`, "success");
+    ocpRender();
+  };
+
+  const onVipFieldChange = (field: string, value: string) => {
+    if (field === "apiVip") ocpUiState.apiVip = value;
+    else if (field === "ingressVip") ocpUiState.ingressVip = value;
+    ocpRender();
+  };
+
+  const onSetVips = async () => {
+    if (!ocpUiState.setupClusterId) return;
+
+    setOcpStatus("Setting VIPs...", "info");
+    ocpRender();
+
+    const result = await ocpCallTool("set_cluster_vips", {
+      cluster_id: ocpUiState.setupClusterId,
+      api_vip: ocpUiState.apiVip,
+      ingress_vip: ocpUiState.ingressVip,
+    });
+
+    if (result.isError) {
+      setOcpStatus("Failed to set VIPs.", "danger");
+      ocpRender();
+      return;
+    }
+
+    setOcpStatus(`VIPs configured. API: ${ocpUiState.apiVip}, Ingress: ${ocpUiState.ingressVip}.`, "success");
+    ocpRender();
+  };
+
   const ocpRender = () => {
     reactRoot.render(
       createElement(OcpAdminApp, {
@@ -1228,6 +1326,18 @@ if (detectedWorkflow === "ocp-admin") {
         onGetLogsUrl,
         onCreatorFieldChange,
         onCreateCluster,
+        onNavigateSetup,
+        setupClusterId: ocpUiState.setupClusterId,
+        hosts: ocpUiState.hosts,
+        isLoadingHosts: ocpUiState.isLoadingHosts,
+        discoveryIsoUrl: ocpUiState.discoveryIsoUrl,
+        apiVip: ocpUiState.apiVip,
+        ingressVip: ocpUiState.ingressVip,
+        hostsDataSource: ocpUiState.hostsDataSource,
+        onLoadHosts,
+        onSetHostRole,
+        onSetVips,
+        onVipFieldChange,
       }),
     );
   };
@@ -1237,6 +1347,8 @@ if (detectedWorkflow === "ocp-admin") {
     ocpWorkflowState.current_step = "cluster_inventory";
   } else if (hash === "step-3") {
     ocpWorkflowState.current_step = "cluster_creator";
+  } else if (hash === "step-4") {
+    ocpWorkflowState.current_step = "cluster_setup";
   }
   ocpRender();
   void onCheckPrerequisites();

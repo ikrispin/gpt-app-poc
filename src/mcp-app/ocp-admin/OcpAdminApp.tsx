@@ -1,6 +1,6 @@
-import type { ClusterCreationResult, ClusterCreatorFormState, ClusterDetailInfo, ClusterEvent, ClusterRow, DataSource, OcpAdminStep, PrerequisiteCheckResult, StatusVariant } from "./ocp-state";
+import type { ClusterCreationResult, ClusterCreatorFormState, ClusterDetailInfo, ClusterEvent, ClusterRow, DataSource, HostInfo, OcpAdminStep, PrerequisiteCheckResult, StatusVariant } from "./ocp-state";
 import { StatusDisplayAdapter } from "../ui/status-display-adapter";
-import { PrerequisitesContent, ClusterInventoryContent, ClusterDetailContent, ClusterCreatorContent } from "./ocp-step-content";
+import { PrerequisitesContent, ClusterInventoryContent, ClusterDetailContent, ClusterCreatorContent, ClusterSetupContent } from "./ocp-step-content";
 
 type OcpAdminAppProps = {
   currentStep: OcpAdminStep;
@@ -33,6 +33,18 @@ type OcpAdminAppProps = {
   onGetLogsUrl: () => void;
   onCreatorFieldChange: (field: string, value: string) => void;
   onCreateCluster: () => void;
+  onNavigateSetup: (clusterId: string) => void;
+  setupClusterId: string | null;
+  hosts: HostInfo[];
+  isLoadingHosts: boolean;
+  discoveryIsoUrl: string | null;
+  apiVip: string;
+  ingressVip: string;
+  hostsDataSource: DataSource;
+  onLoadHosts: () => void;
+  onSetHostRole: (hostId: string, role: string) => void;
+  onSetVips: () => void;
+  onVipFieldChange: (field: string, value: string) => void;
 };
 
 export function OcpAdminApp({
@@ -66,6 +78,18 @@ export function OcpAdminApp({
   onGetLogsUrl,
   onCreatorFieldChange,
   onCreateCluster,
+  onNavigateSetup,
+  setupClusterId,
+  hosts,
+  isLoadingHosts,
+  discoveryIsoUrl,
+  apiVip,
+  ingressVip,
+  hostsDataSource,
+  onLoadHosts,
+  onSetHostRole,
+  onSetVips,
+  onVipFieldChange,
 }: OcpAdminAppProps) {
   return (
     <div className="rhds-shell">
@@ -103,6 +127,14 @@ export function OcpAdminApp({
           >
             Create Cluster
           </button>
+          <button
+            type="button"
+            className={`rhds-step-nav__item ${currentStep === "cluster_setup" ? "rhds-step-nav__item--active" : ""}`}
+            aria-current={currentStep === "cluster_setup" ? "page" : undefined}
+            onClick={() => onNavigateSetup(setupClusterId ?? "")}
+          >
+            Cluster Setup
+          </button>
         </nav>
         <div className="rhds-step-panel">
           {currentStep === "prerequisites" && (
@@ -136,6 +168,22 @@ export function OcpAdminApp({
               onSelectCluster={onSelectCluster}
             />
           )}
+          {currentStep === "cluster_setup" && (
+            <ClusterSetupContent
+              setupClusterId={setupClusterId}
+              hosts={hosts}
+              isLoadingHosts={isLoadingHosts}
+              discoveryIsoUrl={discoveryIsoUrl}
+              apiVip={apiVip}
+              ingressVip={ingressVip}
+              hostsDataSource={hostsDataSource}
+              onLoadHosts={onLoadHosts}
+              onSetHostRole={onSetHostRole}
+              onSetVips={onSetVips}
+              onVipFieldChange={onVipFieldChange}
+              onBackToInventory={() => { onBackToInventory(); onNavigateInventory(); }}
+            />
+          )}
           {currentStep === "cluster_creator" && (
             <ClusterCreatorContent
               formState={creatorForm}
@@ -145,6 +193,7 @@ export function OcpAdminApp({
               onFieldChange={onCreatorFieldChange}
               onSubmit={onCreateCluster}
               onBackToInventory={() => { onBackToInventory(); onNavigateInventory(); }}
+              onNavigateSetup={onNavigateSetup}
             />
           )}
         </div>

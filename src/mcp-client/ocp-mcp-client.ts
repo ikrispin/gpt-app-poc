@@ -71,6 +71,25 @@ export type CreateClusterResult =
   | { readonly ok: true; readonly cluster_id: string; readonly name: string; readonly status: string; readonly dataSource: "live" }
   | { readonly ok: false; readonly error: string };
 
+export type HostInfo = {
+  readonly id: string;
+  readonly hostname: string;
+  readonly status: string;
+  readonly role: string;
+};
+
+export type ClusterHostsResult =
+  | { readonly ok: true; readonly hosts: readonly HostInfo[]; readonly discoveryIsoUrl: string; readonly dataSource: "live" }
+  | { readonly ok: false; readonly error: string };
+
+export type SetHostRoleResult =
+  | { readonly ok: true; readonly dataSource: "live" }
+  | { readonly ok: false; readonly error: string };
+
+export type SetVipsResult =
+  | { readonly ok: true; readonly dataSource: "live" }
+  | { readonly ok: false; readonly error: string };
+
 export type ServerConnectivityStatus = {
   readonly name: string;
   readonly status: "connected" | "not_connected" | "error";
@@ -579,4 +598,91 @@ function parseCreateClusterResponse(text: string, fallbackName: string): CreateC
     // not JSON
   }
   return { ok: false, error: "Failed to parse create cluster response" };
+}
+
+// --- Host Registration & Network Configuration ---
+
+export async function getClusterHosts(clusterId: string): Promise<ClusterHostsResult> {
+  const config = SERVER_CONFIGS[0];
+
+  try {
+    const client = unwrapConnection(await ensureConnection(config));
+    try {
+      const toolResult = await client.callTool({ name: "list_hosts", arguments: { cluster_id: clusterId } });
+      const textContent = toolResult.content as Array<{ type: string; text: string }>;
+      const text = textContent.find((c) => c.type === "text")?.text ?? "";
+      return parseClusterHostsResponse(text);
+    } catch {
+      const retriedClient = unwrapConnection(await reconnect(config));
+      const toolResult = await retriedClient.callTool({ name: "list_hosts", arguments: { cluster_id: clusterId } });
+      const textContent = toolResult.content as Array<{ type: string; text: string }>;
+      const text = textContent.find((c) => c.type === "text")?.text ?? "";
+      return parseClusterHostsResponse(text);
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { ok: false, error: message };
+  }
+}
+
+function parseClusterHostsResponse(text: string): ClusterHostsResult {
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (parsed && typeof parsed === "object") {
+      const obj = parsed as Record<string, unknown>;
+      const rawHosts = Array.isArray(obj.hosts) ? obj.hosts : Array.isArray(parsed) ? parsed as unknown[] : [];
+      const hosts: HostInfo[] = rawHosts.map((h: unknown) => {
+        const host = h as Record<string, unknown>;
+        return {
+          id: String(host.id ?? host.host_id ?? ""),
+          hostname: String(host.hostname ?? host.requested_hostname ?? host.name ?? ""),
+          status: String(host.status ?? "unknown"),
+          role: String(host.role ?? host.host_role ?? "auto-assign"),
+        };
+      });
+      const discoveryIsoUrl = String(obj.discovery_iso_url ?? obj.iso_download_url ?? "");
+      return { ok: true, hosts, discoveryIsoUrl, dataSource: "live" };
+    }
+  } catch {
+    // not JSON
+  }
+  return { ok: false, error: "Failed to parse host list response" };
+}
+
+export async function setHostRole(clusterId: string, hostId: string, role: string): Promise<SetHostRoleResult> {
+  const config = SERVER_CONFIGS[0];
+
+  try {
+    const client = unwrapConnection(await ensureConnection(config));
+    try {
+      await client.callTool({ name: "update_host", arguments: { cluster_id: clusterId, host_id: hostId, host_role: role } });
+      return { ok: true, dataSource: "live" };
+    } catch {
+      const retriedClient = unwrapConnection(await reconnect(config));
+      await retriedClient.callTool({ name: "update_host", arguments: { cluster_id: clusterId, host_id: hostId, host_role: role } });
+      return { ok: true, dataSource: "live" };
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { ok: false, error: message };
+  }
+}
+
+export async function setClusterVips(clusterId: string, apiVip: string, ingressVip: string): Promise<SetVipsResult> {
+  const config = SERVER_CONFIGS[0];
+
+  try {
+    const client = unwrapConnection(await ensureConnection(config));
+    try {
+      await client.callTool({ name: "update_cluster", arguments: { cluster_id: clusterId, api_vip: apiVip, ingress_vip: ingressVip } });
+      return { ok: true, dataSource: "live" };
+    } catch {
+      const retriedClient = unwrapConnection(await reconnect(config));
+      await retriedClient.callTool({ name: "update_cluster", arguments: { cluster_id: clusterId, api_vip: apiVip, ingress_vip: ingressVip } });
+      return { ok: true, dataSource: "live" };
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { ok: false, error: message };
+  }
 }

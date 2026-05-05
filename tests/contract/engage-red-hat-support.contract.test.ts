@@ -117,7 +117,7 @@ test("engage resources are discoverable with required metadata", async () => {
     assert.equal(getSkillTool?.annotations?.destructiveHint, false);
 
     const engageTools = (listedTools.tools ?? [])
-      .filter((tool) => typeof tool.name === "string" && tool.name !== "list_skills" && tool.name !== "get_skill" && !tool.name?.startsWith("start_ocp") && !tool.name?.startsWith("check_ocp") && !tool.name?.startsWith("list_ocp") && !tool.name?.startsWith("get_cluster_") && !tool.name?.startsWith("create_ocp"));
+      .filter((tool) => typeof tool.name === "string" && tool.name !== "list_skills" && tool.name !== "get_skill" && !tool.name?.startsWith("start_ocp") && !tool.name?.startsWith("check_ocp") && !tool.name?.startsWith("list_ocp") && !tool.name?.startsWith("get_cluster_") && !tool.name?.startsWith("create_ocp") && !tool.name?.startsWith("set_host_") && !tool.name?.startsWith("set_cluster_"));
     const outputTemplateDrift = engageTools
       .some((tool) => tool._meta?.["openai/outputTemplate"] !== ENGAGE_UI_URI);
     assert.equal(outputTemplateDrift, false, "engage tool output templates must remain bound to engage app URI");

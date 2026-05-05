@@ -13,8 +13,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { SubscribeRequestSchema, UnsubscribeRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import { listClusters, checkConnectivity, isPodmanAvailable, getClusterInfo, getClusterEvents, getClusterLogsUrl, createCluster } from "./src/mcp-client/ocp-mcp-client.js";
-import type { ClusterDetailInfo, ClusterEvent, CreateClusterParams } from "./src/mcp-client/ocp-mcp-client.js";
+import { listClusters, checkConnectivity, isPodmanAvailable, getClusterInfo, getClusterEvents, getClusterLogsUrl, createCluster, getClusterHosts, setHostRole, setClusterVips } from "./src/mcp-client/ocp-mcp-client.js";
+import type { ClusterDetailInfo, ClusterEvent, CreateClusterParams, HostInfo } from "./src/mcp-client/ocp-mcp-client.js";
 import { JiraAuthContext, JiraClient } from "./src/jira/jira-client.js";
 import {
   attachArtifactSchema,
@@ -849,6 +849,28 @@ const OCP_MOCK_LOGS_URLS: Record<string, string> = {
   "8e5d3e45-77c6-440b-9cfa-9f88187535c6": "https://assisted-logs.example.com/clusters/8e5d3e45/logs.tar.gz?token=mock-token&expires=3600",
 };
 
+const OCP_MOCK_HOSTS: Record<string, HostInfo[]> = {
+  "762df996-acba-4a42-9fe9-edb0a8ec8bee": [
+    { id: "host-0-uuid", hostname: "master-0.prod-ocp.example.com", status: "known", role: "master" },
+    { id: "host-1-uuid", hostname: "master-1.prod-ocp.example.com", status: "known", role: "master" },
+    { id: "host-2-uuid", hostname: "worker-0.prod-ocp.example.com", status: "known", role: "worker" },
+  ],
+  "a1b2c3d4-e5f6-4789-a0b1-c2d3e4f5a6b7": [
+    { id: "host-3-uuid", hostname: "master-0.dev-ocp.example.com", status: "known", role: "master" },
+    { id: "host-4-uuid", hostname: "master-1.dev-ocp.example.com", status: "known", role: "master" },
+    { id: "host-5-uuid", hostname: "worker-0.dev-ocp.example.com", status: "known", role: "worker" },
+  ],
+  "8e5d3e45-77c6-440b-9cfa-9f88187535c6": [
+    { id: "host-6-uuid", hostname: "edge-host-0.edge-01.lab.example.com", status: "known", role: "master" },
+  ],
+};
+
+const OCP_MOCK_DISCOVERY_ISO: Record<string, string> = {
+  "762df996-acba-4a42-9fe9-edb0a8ec8bee": "https://assisted-iso.example.com/clusters/762df996/discovery.iso",
+  "a1b2c3d4-e5f6-4789-a0b1-c2d3e4f5a6b7": "https://assisted-iso.example.com/clusters/a1b2c3d4/discovery.iso",
+  "8e5d3e45-77c6-440b-9cfa-9f88187535c6": "https://assisted-iso.example.com/clusters/8e5d3e45/discovery.iso",
+};
+
 const createMockCluster = (params: { cluster_name: string; openshift_version: string; base_dns_domain: string; high_availability_mode: string }) => ({
   id: randomUUID(),
   name: params.cluster_name,
@@ -1629,6 +1651,119 @@ registerAppTool(
     return {
       content: [{ type: "text", text: `Cluster '${cluster.name}' created. ID: ${cluster.id}. Status: ${cluster.status}.` }],
       structuredContent: { cluster_id: cluster.id, name: cluster.name, status: cluster.status, type: cluster.type, dataSource },
+    };
+  },
+);
+
+registerAppTool(
+  server,
+  "get_cluster_hosts",
+  {
+    title: "Get Cluster Hosts",
+    description: "Returns registered hosts and discovery ISO URL for a self-managed OpenShift cluster.",
+    inputSchema: z.object({
+      cluster_id: z.string().min(1),
+    }),
+    annotations: { readOnlyHint: true, openWorldHint: false, destructiveHint: false },
+    _meta: {
+      ui: { resourceUri: ocpAdminResourceUri },
+      "openai/outputTemplate": ocpAdminResourceUri,
+      "openai/widgetAccessible": true,
+    },
+  },
+  async (args: { cluster_id: string }) => {
+    const result = await getClusterHosts(args.cluster_id);
+
+    let hosts: HostInfo[];
+    let discoveryIsoUrl: string;
+    let dataSource: "live" | "mock";
+
+    if (result.ok === true) {
+      hosts = [...result.hosts];
+      discoveryIsoUrl = result.discoveryIsoUrl;
+      dataSource = result.dataSource;
+    } else {
+      hosts = OCP_MOCK_HOSTS[args.cluster_id] ?? [];
+      discoveryIsoUrl = OCP_MOCK_DISCOVERY_ISO[args.cluster_id] ?? "";
+      dataSource = "mock";
+    }
+
+    const lines = hosts.map((h) => `${h.hostname} (${h.role}) — ${h.status}`);
+
+    return {
+      content: [{ type: "text", text: lines.length > 0 ? `${lines.length} host(s):\n${lines.join("\n")}` : "No hosts registered." }],
+      structuredContent: { hosts, discoveryIsoUrl, total: hosts.length, dataSource, cluster_id: args.cluster_id },
+    };
+  },
+);
+
+registerAppTool(
+  server,
+  "set_host_role",
+  {
+    title: "Set Host Role",
+    description: "Assigns a role (master or worker) to a host in a self-managed OpenShift cluster.",
+    inputSchema: z.object({
+      cluster_id: z.string().min(1),
+      host_id: z.string().min(1),
+      role: z.enum(["master", "worker"]),
+    }),
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    _meta: {
+      ui: { resourceUri: ocpAdminResourceUri },
+      "openai/outputTemplate": ocpAdminResourceUri,
+      "openai/widgetAccessible": true,
+    },
+  },
+  async (args: { cluster_id: string; host_id: string; role: "master" | "worker" }) => {
+    const result = await setHostRole(args.cluster_id, args.host_id, args.role);
+
+    if (result.ok === true) {
+      return {
+        content: [{ type: "text", text: `Host ${args.host_id} role set to ${args.role}.` }],
+        structuredContent: { host_id: args.host_id, role: args.role, dataSource: result.dataSource },
+      };
+    }
+
+    // Mock fallback — just confirm
+    return {
+      content: [{ type: "text", text: `Host ${args.host_id} role set to ${args.role}. (mock)` }],
+      structuredContent: { host_id: args.host_id, role: args.role, dataSource: "mock" },
+    };
+  },
+);
+
+registerAppTool(
+  server,
+  "set_cluster_vips",
+  {
+    title: "Set Cluster VIPs",
+    description: "Configures API and Ingress Virtual IPs for a self-managed OpenShift cluster.",
+    inputSchema: z.object({
+      cluster_id: z.string().min(1),
+      api_vip: z.string().min(1),
+      ingress_vip: z.string().min(1),
+    }),
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+    _meta: {
+      ui: { resourceUri: ocpAdminResourceUri },
+      "openai/outputTemplate": ocpAdminResourceUri,
+      "openai/widgetAccessible": true,
+    },
+  },
+  async (args: { cluster_id: string; api_vip: string; ingress_vip: string }) => {
+    const result = await setClusterVips(args.cluster_id, args.api_vip, args.ingress_vip);
+
+    if (result.ok === true) {
+      return {
+        content: [{ type: "text", text: `VIPs configured. API: ${args.api_vip}, Ingress: ${args.ingress_vip}.` }],
+        structuredContent: { api_vip: args.api_vip, ingress_vip: args.ingress_vip, dataSource: result.dataSource },
+      };
+    }
+
+    return {
+      content: [{ type: "text", text: `VIPs configured. API: ${args.api_vip}, Ingress: ${args.ingress_vip}. (mock)` }],
+      structuredContent: { api_vip: args.api_vip, ingress_vip: args.ingress_vip, dataSource: "mock" },
     };
   },
 );

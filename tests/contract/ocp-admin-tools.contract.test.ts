@@ -232,6 +232,50 @@ test("check_ocp_prerequisites and list_ocp_clusters return correct structured re
     assert.equal(typeof snoSc?.cluster_id, "string");
     assert.equal(snoSc?.name, "sno-test");
     assert.ok(["live", "mock"].includes(snoSc!.dataSource));
+
+    // get_cluster_hosts returns host list and discovery ISO URL (mock)
+    const hostsResult = (await jsonRpc("tools/call", {
+      name: "get_cluster_hosts",
+      arguments: { cluster_id: "762df996-acba-4a42-9fe9-edb0a8ec8bee" },
+    })) as {
+      content?: Array<{ type: string; text: string }>;
+      structuredContent?: { hosts: unknown[]; discoveryIsoUrl: string; total: number; dataSource: string };
+    };
+
+    assert.equal(hostsResult.content?.[0]?.type, "text");
+    const hostsSc = hostsResult.structuredContent;
+    assert.ok(Array.isArray(hostsSc?.hosts));
+    assert.ok(hostsSc!.hosts.length > 0);
+    assert.equal(typeof hostsSc?.discoveryIsoUrl, "string");
+    assert.ok(["live", "mock"].includes(hostsSc!.dataSource));
+
+    // set_host_role returns confirmation (mock)
+    const roleResult = (await jsonRpc("tools/call", {
+      name: "set_host_role",
+      arguments: { cluster_id: "762df996-acba-4a42-9fe9-edb0a8ec8bee", host_id: "host-0-uuid", role: "master" },
+    })) as {
+      content?: Array<{ type: string; text: string }>;
+      structuredContent?: { host_id: string; role: string; dataSource: string };
+    };
+
+    assert.equal(roleResult.content?.[0]?.type, "text");
+    assert.ok(roleResult.content?.[0]?.text?.includes("master"));
+    assert.ok(["live", "mock"].includes(roleResult.structuredContent!.dataSource));
+
+    // set_cluster_vips returns confirmation (mock)
+    const vipsResult = (await jsonRpc("tools/call", {
+      name: "set_cluster_vips",
+      arguments: { cluster_id: "762df996-acba-4a42-9fe9-edb0a8ec8bee", api_vip: "192.168.1.100", ingress_vip: "192.168.1.101" },
+    })) as {
+      content?: Array<{ type: string; text: string }>;
+      structuredContent?: { api_vip: string; ingress_vip: string; dataSource: string };
+    };
+
+    assert.equal(vipsResult.content?.[0]?.type, "text");
+    assert.ok(vipsResult.content?.[0]?.text?.includes("192.168.1.100"));
+    assert.equal(vipsResult.structuredContent?.api_vip, "192.168.1.100");
+    assert.equal(vipsResult.structuredContent?.ingress_vip, "192.168.1.101");
+    assert.ok(["live", "mock"].includes(vipsResult.structuredContent!.dataSource));
   } finally {
     srv.close();
   }
