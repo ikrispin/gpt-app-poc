@@ -45,6 +45,15 @@ type OcpAdminAppProps = {
   onSetHostRole: (hostId: string, role: string) => void;
   onSetVips: () => void;
   onVipFieldChange: (field: string, value: string) => void;
+  installationStatus: string | null;
+  installationProgress: number;
+  installationStatusInfo: string | null;
+  isStartingInstallation: boolean;
+  showInstallConfirm: boolean;
+  onShowInstallConfirm: () => void;
+  onCancelInstallConfirm: () => void;
+  onStartInstallation: () => void;
+  onPollProgress: () => void;
 };
 
 export function OcpAdminApp({
@@ -90,6 +99,15 @@ export function OcpAdminApp({
   onSetHostRole,
   onSetVips,
   onVipFieldChange,
+  installationStatus,
+  installationProgress,
+  installationStatusInfo,
+  isStartingInstallation,
+  showInstallConfirm,
+  onShowInstallConfirm,
+  onCancelInstallConfirm,
+  onStartInstallation,
+  onPollProgress,
 }: OcpAdminAppProps) {
   return (
     <div className="rhds-shell">
@@ -182,6 +200,15 @@ export function OcpAdminApp({
               onSetVips={onSetVips}
               onVipFieldChange={onVipFieldChange}
               onBackToInventory={() => { onBackToInventory(); onNavigateInventory(); }}
+              installationStatus={installationStatus}
+              installationProgress={installationProgress}
+              installationStatusInfo={installationStatusInfo}
+              isStartingInstallation={isStartingInstallation}
+              showInstallConfirm={showInstallConfirm}
+              onShowInstallConfirm={onShowInstallConfirm}
+              onCancelInstallConfirm={onCancelInstallConfirm}
+              onStartInstallation={onStartInstallation}
+              onPollProgress={onPollProgress}
             />
           )}
           {currentStep === "cluster_creator" && (

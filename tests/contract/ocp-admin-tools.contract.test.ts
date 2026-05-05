@@ -276,6 +276,35 @@ test("check_ocp_prerequisites and list_ocp_clusters return correct structured re
     assert.equal(vipsResult.structuredContent?.api_vip, "192.168.1.100");
     assert.equal(vipsResult.structuredContent?.ingress_vip, "192.168.1.101");
     assert.ok(["live", "mock"].includes(vipsResult.structuredContent!.dataSource));
+
+    // start_cluster_installation returns status (mock)
+    const installResult = (await jsonRpc("tools/call", {
+      name: "start_cluster_installation",
+      arguments: { cluster_id: "762df996-acba-4a42-9fe9-edb0a8ec8bee" },
+    })) as {
+      content?: Array<{ type: string; text: string }>;
+      structuredContent?: { cluster_id: string; status: string; dataSource: string };
+    };
+
+    assert.equal(installResult.content?.[0]?.type, "text");
+    assert.ok(installResult.content?.[0]?.text?.includes("Installation started"));
+    assert.equal(installResult.structuredContent?.status, "installing");
+    assert.ok(["live", "mock"].includes(installResult.structuredContent!.dataSource));
+
+    // get_installation_progress returns progress (mock)
+    const progressResult = (await jsonRpc("tools/call", {
+      name: "get_installation_progress",
+      arguments: { cluster_id: "762df996-acba-4a42-9fe9-edb0a8ec8bee" },
+    })) as {
+      content?: Array<{ type: string; text: string }>;
+      structuredContent?: { status: string; progress: number; statusInfo?: string; dataSource: string };
+    };
+
+    assert.equal(progressResult.content?.[0]?.type, "text");
+    const progSc = progressResult.structuredContent;
+    assert.equal(typeof progSc?.status, "string");
+    assert.equal(typeof progSc?.progress, "number");
+    assert.ok(["live", "mock"].includes(progSc!.dataSource));
   } finally {
     srv.close();
   }

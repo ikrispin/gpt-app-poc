@@ -996,6 +996,11 @@ if (detectedWorkflow === "ocp-admin") {
     apiVip: "",
     ingressVip: "",
     hostsDataSource: null,
+    installationStatus: null,
+    installationProgress: 0,
+    installationStatusInfo: null,
+    isStartingInstallation: false,
+    showInstallConfirm: false,
   };
 
   const setOcpStatus = (message: string, variant: OcpAdminUiState["statusVariant"]) => {
@@ -1293,6 +1298,71 @@ if (detectedWorkflow === "ocp-admin") {
     ocpRender();
   };
 
+  const onShowInstallConfirm = () => {
+    ocpUiState.showInstallConfirm = true;
+    ocpRender();
+  };
+
+  const onCancelInstallConfirm = () => {
+    ocpUiState.showInstallConfirm = false;
+    ocpRender();
+  };
+
+  const onStartInstallation = async () => {
+    if (!ocpUiState.setupClusterId) return;
+
+    ocpUiState.showInstallConfirm = false;
+    ocpUiState.isStartingInstallation = true;
+    setOcpStatus("Starting installation...", "info");
+    ocpRender();
+
+    const result = await ocpCallTool("start_cluster_installation", {
+      cluster_id: ocpUiState.setupClusterId,
+    });
+
+    ocpUiState.isStartingInstallation = false;
+
+    if (result.isError) {
+      setOcpStatus("Failed to start installation.", "danger");
+      ocpRender();
+      return;
+    }
+
+    ocpUiState.installationStatus = "installing";
+    ocpUiState.installationProgress = 0;
+    setOcpStatus("Installation started.", "success");
+    ocpRender();
+    void onPollProgress();
+  };
+
+  const onPollProgress = async () => {
+    if (!ocpUiState.setupClusterId) return;
+
+    const result = await ocpCallTool("get_installation_progress", {
+      cluster_id: ocpUiState.setupClusterId,
+    });
+
+    if (result.isError) {
+      setOcpStatus("Failed to get installation progress.", "warning");
+      ocpRender();
+      return;
+    }
+
+    const structured = result.structuredContent ?? {};
+    ocpUiState.installationStatus = String(structured.status ?? "unknown");
+    ocpUiState.installationProgress = typeof structured.progress === "number" ? structured.progress : 0;
+    ocpUiState.installationStatusInfo = structured.statusInfo ? String(structured.statusInfo) : null;
+
+    if (ocpUiState.installationStatus === "installed") {
+      setOcpStatus("Installation complete!", "success");
+    } else if (ocpUiState.installationStatus === "error") {
+      setOcpStatus("Installation failed.", "danger");
+    } else {
+      setOcpStatus(`Installing... ${ocpUiState.installationProgress}%`, "info");
+    }
+    ocpRender();
+  };
+
   const ocpRender = () => {
     reactRoot.render(
       createElement(OcpAdminApp, {
@@ -1338,6 +1408,15 @@ if (detectedWorkflow === "ocp-admin") {
         onSetHostRole,
         onSetVips,
         onVipFieldChange,
+        installationStatus: ocpUiState.installationStatus,
+        installationProgress: ocpUiState.installationProgress,
+        installationStatusInfo: ocpUiState.installationStatusInfo,
+        isStartingInstallation: ocpUiState.isStartingInstallation,
+        showInstallConfirm: ocpUiState.showInstallConfirm,
+        onShowInstallConfirm,
+        onCancelInstallConfirm,
+        onStartInstallation,
+        onPollProgress,
       }),
     );
   };

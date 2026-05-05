@@ -531,6 +531,15 @@ type ClusterSetupContentProps = {
   onSetVips: () => void;
   onVipFieldChange: (field: string, value: string) => void;
   onBackToInventory: () => void;
+  installationStatus: string | null;
+  installationProgress: number;
+  installationStatusInfo: string | null;
+  isStartingInstallation: boolean;
+  showInstallConfirm: boolean;
+  onShowInstallConfirm: () => void;
+  onCancelInstallConfirm: () => void;
+  onStartInstallation: () => void;
+  onPollProgress: () => void;
 };
 
 const ROLE_OPTIONS = [
@@ -542,6 +551,8 @@ const ROLE_OPTIONS = [
 export function ClusterSetupContent({
   setupClusterId, hosts, isLoadingHosts, discoveryIsoUrl, apiVip, ingressVip, hostsDataSource,
   onLoadHosts, onSetHostRole, onSetVips, onVipFieldChange, onBackToInventory,
+  installationStatus, installationProgress, installationStatusInfo, isStartingInstallation, showInstallConfirm,
+  onShowInstallConfirm, onCancelInstallConfirm, onStartInstallation, onPollProgress,
 }: ClusterSetupContentProps) {
   if (!setupClusterId) {
     return (
@@ -677,6 +688,84 @@ export function ClusterSetupContent({
       >
         Set VIPs
       </ActionButtonAdapter>
+
+      <hr style={{ margin: "1.5rem 0", border: "none", borderTop: "1px solid var(--rhds-border-subtle, #d2d2d2)" }} />
+
+      <h3 style={{ fontSize: "0.95rem", margin: "0 0 0.75rem" }}>Installation</h3>
+
+      <p style={{ fontSize: "0.85rem", marginBottom: "1rem" }}>
+        Readiness: {rolesAssigned} of {hosts.length} host(s) with roles assigned.
+        VIPs: {vipsConfigured ? "configured" : "not configured"}.
+        {rolesAssigned > 0 && vipsConfigured ? " Ready to install." : " Complete host and network setup first."}
+      </p>
+
+      {installationStatus === "installed" && (
+        <div style={{ padding: "0.75rem", backgroundColor: "#e9f5e6", border: "1px solid #3e8635", borderRadius: "4px", marginBottom: "1rem" }}>
+          <p style={{ margin: 0, color: "#3e8635", fontWeight: 600 }}>Installation complete!</p>
+          {installationStatusInfo && <p style={{ margin: "0.25rem 0 0", fontSize: "0.85rem" }}>{installationStatusInfo}</p>}
+          <div style={{ marginTop: "0.75rem" }}>
+            <ActionButtonAdapter id="ocp-install-to-inventory" variant="primary" onClick={onBackToInventory}>
+              View in Inventory
+            </ActionButtonAdapter>
+          </div>
+        </div>
+      )}
+
+      {installationStatus === "error" && (
+        <div style={{ padding: "0.75rem", backgroundColor: "#fce9e8", border: "1px solid #c9190b", borderRadius: "4px", marginBottom: "1rem" }}>
+          <p style={{ margin: 0, color: "#c9190b", fontWeight: 600 }}>Installation failed</p>
+          {installationStatusInfo && <p style={{ margin: "0.25rem 0 0", fontSize: "0.85rem" }}>{installationStatusInfo}</p>}
+        </div>
+      )}
+
+      {installationStatus === "installing" && (
+        <div style={{ marginBottom: "1rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", marginBottom: "0.25rem" }}>
+            <span>Installing...</span>
+            <span>{installationProgress}%</span>
+          </div>
+          <div style={{ height: "8px", backgroundColor: "var(--rhds-border-subtle, #d2d2d2)", borderRadius: "4px", overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${installationProgress}%`, backgroundColor: "#06c", borderRadius: "4px", transition: "width 0.3s" }} />
+          </div>
+          {installationStatusInfo && (
+            <p style={{ fontSize: "0.8rem", color: "var(--rhds-text-muted, #4f5255)", margin: "0.5rem 0 0" }}>{installationStatusInfo}</p>
+          )}
+          <div style={{ marginTop: "0.75rem" }}>
+            <ActionButtonAdapter id="ocp-poll-progress" variant="secondary" onClick={onPollProgress}>
+              Refresh Progress
+            </ActionButtonAdapter>
+          </div>
+        </div>
+      )}
+
+      {isStartingInstallation && (
+        <p style={{ color: "var(--rhds-text-muted, #4f5255)", fontStyle: "italic" }}>Starting installation...</p>
+      )}
+
+      {!installationStatus && !isStartingInstallation && !showInstallConfirm && (
+        <ActionButtonAdapter
+          id="ocp-start-install"
+          variant="primary"
+          isDisabled={rolesAssigned === 0 || !vipsConfigured}
+          onClick={onShowInstallConfirm}
+        >
+          Start Installation
+        </ActionButtonAdapter>
+      )}
+
+      {showInstallConfirm && (
+        <div style={{ padding: "0.75rem", backgroundColor: "#fef6e0", border: "1px solid #f0ab00", borderRadius: "4px" }}>
+          <p style={{ margin: "0 0 0.75rem", fontWeight: 600 }}>This will begin installing OpenShift. This cannot be undone.</p>
+          <div style={{ display: "flex", gap: "0.75rem" }}>
+            <ActionButtonAdapter id="ocp-confirm-install" variant="primary" onClick={onStartInstallation}>
+              Confirm
+            </ActionButtonAdapter>
+            <ActionButtonAdapter id="ocp-cancel-install" variant="secondary" onClick={onCancelInstallConfirm}>
+              Cancel
+            </ActionButtonAdapter>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

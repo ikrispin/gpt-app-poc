@@ -13,8 +13,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { SubscribeRequestSchema, UnsubscribeRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import { listClusters, checkConnectivity, isPodmanAvailable, getClusterInfo, getClusterEvents, getClusterLogsUrl, createCluster, getClusterHosts, setHostRole, setClusterVips } from "./src/mcp-client/ocp-mcp-client.js";
-import type { ClusterDetailInfo, ClusterEvent, CreateClusterParams, HostInfo } from "./src/mcp-client/ocp-mcp-client.js";
+import { listClusters, checkConnectivity, isPodmanAvailable, getClusterInfo, getClusterEvents, getClusterLogsUrl, createCluster, getClusterHosts, setHostRole, setClusterVips, startInstallation, getInstallationProgress } from "./src/mcp-client/ocp-mcp-client.js";
+import type { ClusterDetailInfo, ClusterEvent, CreateClusterParams, HostInfo, InstallationProgress } from "./src/mcp-client/ocp-mcp-client.js";
 import { JiraAuthContext, JiraClient } from "./src/jira/jira-client.js";
 import {
   attachArtifactSchema,
@@ -869,6 +869,12 @@ const OCP_MOCK_DISCOVERY_ISO: Record<string, string> = {
   "762df996-acba-4a42-9fe9-edb0a8ec8bee": "https://assisted-iso.example.com/clusters/762df996/discovery.iso",
   "a1b2c3d4-e5f6-4789-a0b1-c2d3e4f5a6b7": "https://assisted-iso.example.com/clusters/a1b2c3d4/discovery.iso",
   "8e5d3e45-77c6-440b-9cfa-9f88187535c6": "https://assisted-iso.example.com/clusters/8e5d3e45/discovery.iso",
+};
+
+const OCP_MOCK_INSTALL_STATUS: Record<string, InstallationProgress> = {
+  "762df996-acba-4a42-9fe9-edb0a8ec8bee": { status: "installing", progress: 65, statusInfo: "Bootstrap complete, installing control plane components" },
+  "a1b2c3d4-e5f6-4789-a0b1-c2d3e4f5a6b7": { status: "installed", progress: 100, statusInfo: "Installation completed successfully" },
+  "8e5d3e45-77c6-440b-9cfa-9f88187535c6": { status: "installing", progress: 30, statusInfo: "Bootstrapping cluster, waiting for control plane" },
 };
 
 const createMockCluster = (params: { cluster_name: string; openshift_version: string; base_dns_domain: string; high_availability_mode: string }) => ({
@@ -1764,6 +1770,71 @@ registerAppTool(
     return {
       content: [{ type: "text", text: `VIPs configured. API: ${args.api_vip}, Ingress: ${args.ingress_vip}. (mock)` }],
       structuredContent: { api_vip: args.api_vip, ingress_vip: args.ingress_vip, dataSource: "mock" },
+    };
+  },
+);
+
+registerAppTool(
+  server,
+  "start_cluster_installation",
+  {
+    title: "Start Cluster Installation",
+    description: "Triggers installation of a self-managed OpenShift cluster. Requires hosts and VIPs to be configured.",
+    inputSchema: z.object({
+      cluster_id: z.string().min(1),
+    }),
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: true },
+    _meta: {
+      ui: { resourceUri: ocpAdminResourceUri },
+      "openai/outputTemplate": ocpAdminResourceUri,
+      "openai/widgetAccessible": true,
+    },
+  },
+  async (args: { cluster_id: string }) => {
+    const result = await startInstallation(args.cluster_id);
+
+    const dataSource = result.ok === true ? result.dataSource : "mock";
+
+    return {
+      content: [{ type: "text", text: `Installation started for cluster ${args.cluster_id}.` }],
+      structuredContent: { cluster_id: args.cluster_id, status: "installing", dataSource },
+    };
+  },
+);
+
+registerAppTool(
+  server,
+  "get_installation_progress",
+  {
+    title: "Get Installation Progress",
+    description: "Returns current installation status and progress for a self-managed OpenShift cluster.",
+    inputSchema: z.object({
+      cluster_id: z.string().min(1),
+    }),
+    annotations: { readOnlyHint: true, openWorldHint: false, destructiveHint: false },
+    _meta: {
+      ui: { resourceUri: ocpAdminResourceUri },
+      "openai/outputTemplate": ocpAdminResourceUri,
+      "openai/widgetAccessible": true,
+    },
+  },
+  async (args: { cluster_id: string }) => {
+    const result = await getInstallationProgress(args.cluster_id);
+
+    let progress: InstallationProgress;
+    let dataSource: "live" | "mock";
+
+    if (result.ok === true) {
+      progress = result.progress;
+      dataSource = result.dataSource;
+    } else {
+      progress = OCP_MOCK_INSTALL_STATUS[args.cluster_id] ?? { status: "pending-for-input", progress: 0, statusInfo: "Waiting for configuration" };
+      dataSource = "mock";
+    }
+
+    return {
+      content: [{ type: "text", text: `Status: ${progress.status} (${progress.progress}%)${progress.statusInfo ? ` — ${progress.statusInfo}` : ""}` }],
+      structuredContent: { ...progress, dataSource, cluster_id: args.cluster_id },
     };
   },
 );

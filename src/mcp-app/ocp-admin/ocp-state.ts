@@ -108,4 +108,9 @@ export type OcpAdminUiState = {
   apiVip: string;
   ingressVip: string;
   hostsDataSource: DataSource;
+  installationStatus: string | null;
+  installationProgress: number;
+  installationStatusInfo: string | null;
+  isStartingInstallation: boolean;
+  showInstallConfirm: boolean;
 };

@@ -90,6 +90,20 @@ export type SetVipsResult =
   | { readonly ok: true; readonly dataSource: "live" }
   | { readonly ok: false; readonly error: string };
 
+export type StartInstallationResult =
+  | { readonly ok: true; readonly dataSource: "live" }
+  | { readonly ok: false; readonly error: string };
+
+export type InstallationProgress = {
+  readonly status: string;
+  readonly progress: number;
+  readonly statusInfo?: string;
+};
+
+export type InstallationProgressResult =
+  | { readonly ok: true; readonly progress: InstallationProgress; readonly dataSource: "live" }
+  | { readonly ok: false; readonly error: string };
+
 export type ServerConnectivityStatus = {
   readonly name: string;
   readonly status: "connected" | "not_connected" | "error";
@@ -685,4 +699,69 @@ export async function setClusterVips(clusterId: string, apiVip: string, ingressV
     const message = err instanceof Error ? err.message : "Unknown error";
     return { ok: false, error: message };
   }
+}
+
+// --- Installation ---
+
+export async function startInstallation(clusterId: string): Promise<StartInstallationResult> {
+  const config = SERVER_CONFIGS[0];
+
+  try {
+    const client = unwrapConnection(await ensureConnection(config));
+    try {
+      await client.callTool({ name: "install_cluster", arguments: { cluster_id: clusterId } });
+      return { ok: true, dataSource: "live" };
+    } catch {
+      const retriedClient = unwrapConnection(await reconnect(config));
+      await retriedClient.callTool({ name: "install_cluster", arguments: { cluster_id: clusterId } });
+      return { ok: true, dataSource: "live" };
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { ok: false, error: message };
+  }
+}
+
+export async function getInstallationProgress(clusterId: string): Promise<InstallationProgressResult> {
+  const config = SERVER_CONFIGS[0];
+
+  try {
+    const client = unwrapConnection(await ensureConnection(config));
+    try {
+      const toolResult = await client.callTool({ name: "cluster_info", arguments: { cluster_id: clusterId } });
+      const textContent = toolResult.content as Array<{ type: string; text: string }>;
+      const text = textContent.find((c) => c.type === "text")?.text ?? "";
+      return parseInstallationProgress(text);
+    } catch {
+      const retriedClient = unwrapConnection(await reconnect(config));
+      const toolResult = await retriedClient.callTool({ name: "cluster_info", arguments: { cluster_id: clusterId } });
+      const textContent = toolResult.content as Array<{ type: string; text: string }>;
+      const text = textContent.find((c) => c.type === "text")?.text ?? "";
+      return parseInstallationProgress(text);
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { ok: false, error: message };
+  }
+}
+
+function parseInstallationProgress(text: string): InstallationProgressResult {
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (parsed && typeof parsed === "object") {
+      const obj = parsed as Record<string, unknown>;
+      return {
+        ok: true,
+        progress: {
+          status: String(obj.status ?? "unknown"),
+          progress: typeof obj.progress === "number" ? obj.progress : typeof obj.install_completion_percentage === "number" ? obj.install_completion_percentage : 0,
+          statusInfo: obj.status_info ? String(obj.status_info) : undefined,
+        },
+        dataSource: "live",
+      };
+    }
+  } catch {
+    // not JSON
+  }
+  return { ok: false, error: "Failed to parse installation progress" };
 }
