@@ -53,7 +53,7 @@ export function PrerequisitesContent({ onContinue, prerequisiteResults, onCheckP
         <h3 style={{ fontSize: "0.95rem", margin: "0 0 0.5rem" }}>Available Skills</h3>
         <ul style={{ margin: 0, paddingLeft: "1.25rem" }}>
           <li><strong>cluster-inventory</strong> — List and inspect clusters across all types (read-only)</li>
-          <li><em>cluster-creator</em> — Planned</li>
+          <li><strong>cluster-creator</strong> — Create and install self-managed OpenShift clusters (OCP, SNO)</li>
           <li><em>cluster-report</em> — Planned</li>
         </ul>
       </div>

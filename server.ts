@@ -1294,7 +1294,7 @@ registerAppTool(
         text: [
           "OCP Admin persona activated.",
           `Read the skill for detailed workflow instructions: ${OCP_ADMIN_SKILL_RESOURCE_URI}`,
-          "Available sub-skill: cluster-inventory (read-only cluster listing)",
+          "Available sub-skills: cluster-inventory (read-only cluster listing), cluster-creator (create and install OCP/SNO clusters)",
           "Prerequisites: OFFLINE_TOKEN env var, openshift-self-managed and openshift-ocm-managed MCP servers",
         ].join("\n"),
       },
@@ -1302,7 +1302,7 @@ registerAppTool(
     structuredContent: {
       persona: "ocp-admin",
       skill_uri: OCP_ADMIN_SKILL_RESOURCE_URI,
-      available_skills: ["cluster-inventory"],
+      available_skills: ["cluster-inventory", "cluster-creator"],
       prerequisites: {
         env_vars: ["OFFLINE_TOKEN"],
         mcp_servers: ["openshift-self-managed", "openshift-ocm-managed"],

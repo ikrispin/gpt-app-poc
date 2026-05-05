@@ -9,7 +9,7 @@ Match the user's request to the correct skill:
 | When the user asks about... | Skill | Status |
 |----------------------------|-------|--------|
 | List clusters, show cluster status, cluster details, cluster events, installation progress, cluster inventory | cluster-inventory | Available |
-| Create cluster, install OpenShift, deploy SNO, deploy HA cluster, provision cluster, set up cluster | cluster-creator | Planned |
+| Create cluster, install OpenShift, deploy SNO, deploy HA cluster, provision cluster, set up cluster | cluster-creator | Available |
 | Health report, multi-cluster status, fleet summary, resource usage across clusters, cluster comparison | cluster-report | Planned |
 
 If the request doesn't clearly match one skill, ask the user to clarify.
@@ -140,3 +140,30 @@ Found 5 cluster(s): 3 ready, 1 installing, 1 pending
 | aro-dev | 20ekbvg1... | ready | ARO | 4.20.0 | Azure | - |
 | edge-01 | 8e5d3e45-... | pending-for-input | SNO | 4.21.0 | Self-managed | - |
 ```
+
+---
+
+## Skill: cluster-creator
+
+Create and install self-managed OpenShift clusters (OCP, SNO) via the Assisted Installer API.
+
+### Prerequisites
+
+**Required MCP Server**: `openshift-self-managed`
+
+**Required MCP Tools**:
+- `create_cluster` — Define a new cluster (name, version, DNS domain, HA mode, network type)
+- `list_hosts` — List registered hosts for a cluster
+- `update_host` — Assign roles (master/worker) to hosts
+- `update_cluster` — Configure API VIP and Ingress VIP
+- `install_cluster` — Trigger cluster installation
+
+**Environment Variables**: `OFFLINE_TOKEN` — Red Hat authentication token
+
+### Workflow
+
+1. **Create Cluster** — User provides cluster name, OpenShift version, base DNS domain, HA mode (Full or SNO), network type. Returns cluster ID.
+2. **Register Hosts** — Boot hosts from discovery ISO. Hosts auto-register with the cluster.
+3. **Assign Roles** — Assign master or worker role to each registered host. Requires user confirmation.
+4. **Configure VIPs** — Set API VIP and Ingress VIP. Requires user confirmation.
+5. **Install** — Trigger cluster installation. Requires explicit user confirmation. Monitor progress via cluster status and events.
