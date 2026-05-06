@@ -664,13 +664,27 @@ export async function createCluster(params: CreateClusterParams): Promise<Create
   try {
     const client = unwrapConnection(await ensureConnection(config));
     try {
-      const toolResult = await client.callTool({ name: "create_cluster", arguments: { ...params } });
+      const args = {
+        name: params.name,
+        version: params.openshift_version,
+        base_domain: params.base_dns_domain,
+        single_node: params.high_availability_mode === "None",
+        network_type: params.network_type,
+      };
+      const toolResult = await client.callTool({ name: "create_cluster", arguments: args });
       const textContent = toolResult.content as Array<{ type: string; text: string }>;
       const text = textContent.find((c) => c.type === "text")?.text ?? "";
       return parseCreateClusterResponse(text, params.name);
     } catch {
       const retriedClient = unwrapConnection(await reconnect(config));
-      const toolResult = await retriedClient.callTool({ name: "create_cluster", arguments: { ...params } });
+      const retryArgs = {
+        name: params.name,
+        version: params.openshift_version,
+        base_domain: params.base_dns_domain,
+        single_node: params.high_availability_mode === "None",
+        network_type: params.network_type,
+      };
+      const toolResult = await retriedClient.callTool({ name: "create_cluster", arguments: retryArgs });
       const textContent = toolResult.content as Array<{ type: string; text: string }>;
       const text = textContent.find((c) => c.type === "text")?.text ?? "";
       return parseCreateClusterResponse(text, params.name);
@@ -682,23 +696,25 @@ export async function createCluster(params: CreateClusterParams): Promise<Create
 }
 
 function parseCreateClusterResponse(text: string, fallbackName: string): CreateClusterResult {
+  const trimmed = text.trim();
+
   try {
-    const parsed: unknown = JSON.parse(text);
+    const parsed: unknown = JSON.parse(trimmed);
     if (parsed && typeof parsed === "object") {
       const obj = parsed as Record<string, unknown>;
-      const id = String(obj.id ?? obj.cluster_id ?? "");
-      if (!id) return { ok: false, error: "No cluster ID in response" };
-      return {
-        ok: true,
-        cluster_id: id,
-        name: String(obj.name ?? fallbackName),
-        status: String(obj.status ?? "pending-for-input"),
-        dataSource: "live",
-      };
+      const id = String(obj.id ?? obj.cluster_id ?? obj.result ?? "");
+      if (id) {
+        return { ok: true, cluster_id: id, name: String(obj.name ?? fallbackName), status: String(obj.status ?? "pending-for-input"), dataSource: "live" };
+      }
     }
   } catch {
-    // not JSON
+    // not JSON — check if it's a raw UUID
   }
+
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed)) {
+    return { ok: true, cluster_id: trimmed, name: fallbackName, status: "pending-for-input", dataSource: "live" };
+  }
+
   return { ok: false, error: "Failed to parse create cluster response" };
 }
 
