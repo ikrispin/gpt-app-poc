@@ -265,6 +265,55 @@ function parseClusterResponse(text: string, serverName: string): OcpClusterRow[]
     }
   }
 
+  if (clusters.length === 0) {
+    const dashParsed = parseDashBulletFormat(text, serverName);
+    if (dashParsed.length > 0) return dashParsed;
+  }
+
+  return clusters;
+}
+
+function parseDashBulletFormat(text: string, serverName: string): OcpClusterRow[] {
+  const clusters: OcpClusterRow[] = [];
+  const blocks = text.split(/\n(?=[0-9a-f]{8}-[0-9a-f]{4}-|[0-9a-f]{32,})/);
+
+  for (const block of blocks) {
+    const lines = block.trim().split("\n");
+    if (lines.length < 2) continue;
+
+    const name = lines[0].trim();
+    if (!name) continue;
+
+    const fields: Record<string, string> = {};
+    for (const line of lines.slice(1)) {
+      const match = line.match(/^-\s*([^:]+):\s*(.*)$/);
+      if (match) {
+        fields[match[1].trim().toLowerCase()] = match[2].trim();
+      }
+    }
+
+    const id = fields["id"] ?? name;
+    const status = fields["status"] ?? "unknown";
+    const version = fields["openshift version"] ?? fields["version"] ?? "";
+    const provider = fields["cloud provider"] ?? fields["provider"] ?? "";
+    const region = fields["region"] ?? fields["cloud region"] ?? "-";
+
+    const obj: Record<string, unknown> = {
+      cloud_provider: provider,
+      product: fields["product"] ?? "",
+    };
+
+    clusters.push({
+      name: name.length > 40 ? (fields["name"] ?? name) : name,
+      id,
+      status,
+      type: detectClusterType(serverName, obj),
+      version,
+      provider: provider || detectProvider(serverName, obj),
+      region: region || "-",
+    });
+  }
+
   return clusters;
 }
 
@@ -307,7 +356,10 @@ async function fetchClustersFromServer(config: ServerConfig): Promise<{ serverNa
     const toolResult = await client.callTool({ name: "list_clusters", arguments: {} });
     const textContent = toolResult.content as Array<{ type: string; text: string }>;
     const text = textContent.find((c) => c.type === "text")?.text ?? "";
-    return { serverName: config.name, clusters: parseClusterResponse(text, config.name) };
+    console.error(`[DEBUG ${config.name}] raw response length: ${text.length}, first 500 chars: ${text.slice(0, 500)}`);
+    const clusters = parseClusterResponse(text, config.name);
+    console.error(`[DEBUG ${config.name}] parsed ${clusters.length} clusters`);
+    return { serverName: config.name, clusters };
   } catch {
     const retriedClient = unwrapConnection(await reconnect(config));
     const toolResult = await retriedClient.callTool({ name: "list_clusters", arguments: {} });
