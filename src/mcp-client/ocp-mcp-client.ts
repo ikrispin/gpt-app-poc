@@ -356,10 +356,7 @@ async function fetchClustersFromServer(config: ServerConfig): Promise<{ serverNa
     const toolResult = await client.callTool({ name: "list_clusters", arguments: {} });
     const textContent = toolResult.content as Array<{ type: string; text: string }>;
     const text = textContent.find((c) => c.type === "text")?.text ?? "";
-    console.error(`[DEBUG ${config.name}] raw response length: ${text.length}, first 500 chars: ${text.slice(0, 500)}`);
-    const clusters = parseClusterResponse(text, config.name);
-    console.error(`[DEBUG ${config.name}] parsed ${clusters.length} clusters`);
-    return { serverName: config.name, clusters };
+    return { serverName: config.name, clusters: parseClusterResponse(text, config.name) };
   } catch {
     const retriedClient = unwrapConnection(await reconnect(config));
     const toolResult = await retriedClient.callTool({ name: "list_clusters", arguments: {} });
