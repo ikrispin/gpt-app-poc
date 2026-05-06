@@ -10,7 +10,6 @@ Match the user's request to the correct skill:
 |----------------------------|-------|--------|
 | List clusters, show cluster status, cluster details, cluster events, installation progress, cluster inventory | cluster-inventory | Available |
 | Create cluster, install OpenShift, deploy SNO, deploy HA cluster, provision cluster, set up cluster | cluster-creator | Available |
-| Health report, multi-cluster status, fleet summary, resource usage across clusters, cluster comparison | cluster-report | Planned |
 
 If the request doesn't clearly match one skill, ask the user to clarify.
 
@@ -20,7 +19,6 @@ Three external MCP servers provide the underlying APIs. These must be configured
 
 - **openshift-self-managed** (Required for cluster-inventory, cluster-creator) — Assisted Installer API for self-managed cluster lifecycle (OCP, SNO). Requires `OFFLINE_TOKEN` from https://cloud.redhat.com/openshift/token.
 - **openshift-ocm-managed** (Required for cluster-inventory) — OpenShift Cluster Manager API for managed service clusters (ROSA, ARO, OSD). Requires `OFFLINE_TOKEN`.
-- **openshift-administration** (Required for cluster-report) — Kubernetes/OpenShift cluster operations for multi-cluster management. Requires `KUBECONFIG` with cluster access. Read-only mode enforced.
 
 ## Global Rules
 

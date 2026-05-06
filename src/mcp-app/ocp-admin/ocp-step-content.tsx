@@ -54,7 +54,6 @@ export function PrerequisitesContent({ onContinue, prerequisiteResults, onCheckP
         <ul style={{ margin: 0, paddingLeft: "1.25rem" }}>
           <li><strong>cluster-inventory</strong> — List and inspect clusters across all types (read-only)</li>
           <li><strong>cluster-creator</strong> — Create and install self-managed OpenShift clusters (OCP, SNO)</li>
-          <li><em>cluster-report</em> — Planned</li>
         </ul>
       </div>
 
