@@ -450,30 +450,69 @@ function parseClusterDetailResponse(text: string, serverName: string): ClusterDe
     const parsed: unknown = JSON.parse(text);
     if (!parsed || typeof parsed !== "object") return null;
     const obj = parsed as Record<string, unknown>;
-    return {
-      name: String(obj.name ?? ""),
-      id: String(obj.id ?? obj.cluster_id ?? ""),
-      status: String(obj.status ?? "unknown"),
-      type: detectClusterType(serverName, obj),
-      version: String(obj.openshift_version ?? obj.version ?? ""),
-      provider: detectProvider(serverName, obj),
-      region: String(obj.region ?? obj.cloud_provider_region ?? "-"),
-      created_at: obj.created_at ? String(obj.created_at) : undefined,
-      api_vip: obj.api_vip ? String(obj.api_vip) : obj.api_url ? String(obj.api_url) : undefined,
-      ingress_vip: obj.ingress_vip ? String(obj.ingress_vip) : undefined,
-      api_url: obj.api_url ? String(obj.api_url) : undefined,
-      console_url: obj.console_url ? String(obj.console_url) : obj.console ? String((obj.console as Record<string, unknown>).url ?? "") : undefined,
-      dns_domain: obj.base_dns_domain ? String(obj.base_dns_domain) : obj.dns_domain ? String(obj.dns_domain) : undefined,
-      host_count: typeof obj.host_count === "number" ? obj.host_count : typeof obj.nodes === "object" && obj.nodes ? Object.keys(obj.nodes).length : undefined,
-      network_type: obj.network_type ? String(obj.network_type) : undefined,
-      cluster_network_cidr: extractCidr(obj.cluster_networks ?? obj.cluster_network_cidr),
-      service_network_cidr: extractCidr(obj.service_networks ?? obj.service_network_cidr),
-      platform_type: obj.platform ? String(typeof obj.platform === "object" ? (obj.platform as Record<string, unknown>).type ?? obj.platform : obj.platform) : undefined,
-      source: serverName,
-    };
+    return buildDetailFromObject(obj, serverName);
   } catch {
-    return null;
+    return parseDashBulletDetail(text, serverName);
   }
+}
+
+function buildDetailFromObject(obj: Record<string, unknown>, serverName: string): ClusterDetailInfo {
+  return {
+    name: String(obj.name ?? ""),
+    id: String(obj.id ?? obj.cluster_id ?? ""),
+    status: String(obj.status ?? "unknown"),
+    type: detectClusterType(serverName, obj),
+    version: String(obj.openshift_version ?? obj.version ?? ""),
+    provider: detectProvider(serverName, obj),
+    region: String(obj.region ?? obj.cloud_provider_region ?? "-"),
+    created_at: obj.created_at ? String(obj.created_at) : undefined,
+    api_vip: obj.api_vip ? String(obj.api_vip) : obj.api_url ? String(obj.api_url) : undefined,
+    ingress_vip: obj.ingress_vip ? String(obj.ingress_vip) : undefined,
+    api_url: obj.api_url ? String(obj.api_url) : undefined,
+    console_url: obj.console_url ? String(obj.console_url) : obj.console ? String((obj.console as Record<string, unknown>).url ?? "") : undefined,
+    dns_domain: obj.base_dns_domain ? String(obj.base_dns_domain) : obj.dns_domain ? String(obj.dns_domain) : undefined,
+    host_count: typeof obj.host_count === "number" ? obj.host_count : typeof obj.nodes === "object" && obj.nodes ? Object.keys(obj.nodes).length : undefined,
+    network_type: obj.network_type ? String(obj.network_type) : undefined,
+    cluster_network_cidr: extractCidr(obj.cluster_networks ?? obj.cluster_network_cidr),
+    service_network_cidr: extractCidr(obj.service_networks ?? obj.service_network_cidr),
+    platform_type: obj.platform ? String(typeof obj.platform === "object" ? (obj.platform as Record<string, unknown>).type ?? obj.platform : obj.platform) : undefined,
+    source: serverName,
+  };
+}
+
+function parseDashBulletDetail(text: string, serverName: string): ClusterDetailInfo | null {
+  const lines = text.trim().split("\n");
+  if (lines.length < 2) return null;
+
+  const fields: Record<string, string> = {};
+  let name = "";
+
+  for (const line of lines) {
+    const match = line.match(/^-\s*([^:]+):\s*(.*)$/);
+    if (match) {
+      fields[match[1].trim().toLowerCase()] = match[2].trim();
+    } else if (!name && line.trim() && !line.startsWith("-")) {
+      name = line.trim();
+    }
+  }
+
+  if (!name && !fields["id"] && !fields["name"]) return null;
+
+  return {
+    name: fields["name"] ?? name,
+    id: fields["id"] ?? name,
+    status: fields["status"] ?? "unknown",
+    type: detectClusterType(serverName, { cloud_provider: fields["cloud provider"] ?? "", product: fields["product"] ?? "" }),
+    version: fields["openshift version"] ?? fields["version"] ?? "",
+    provider: fields["cloud provider"] ?? fields["provider"] ?? detectProvider(serverName, {}),
+    region: fields["region"] ?? fields["cloud region"] ?? "-",
+    created_at: fields["created at"] ?? fields["creation date"] ?? undefined,
+    api_url: fields["api url"] ?? fields["api"] ?? undefined,
+    console_url: fields["console url"] ?? fields["console"] ?? undefined,
+    dns_domain: fields["dns domain"] ?? fields["base dns domain"] ?? undefined,
+    network_type: fields["network type"] ?? undefined,
+    source: serverName,
+  };
 }
 
 function extractCidr(value: unknown): string | undefined {
