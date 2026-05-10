@@ -1,9 +1,4 @@
-export type OcpAdminStep = "cluster_inventory" | "cluster_creator" | "cluster_setup";
-export type OcpAdminView = "full" | "inventory" | "detail" | "creator" | "setup";
-
-export type OcpAdminWorkflowState = {
-  current_step: OcpAdminStep;
-};
+export type OcpAdminView = "inventory" | "detail" | "creator" | "setup";
 
 export type StatusVariant = "info" | "success" | "warning" | "danger";
 

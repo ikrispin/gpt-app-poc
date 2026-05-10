@@ -1291,11 +1291,7 @@ registerAppTool(
       openWorldHint: false,
       destructiveHint: false,
     },
-    _meta: {
-      ui: { resourceUri: ocpAdminResourceUri },
-      "openai/outputTemplate": ocpAdminResourceUri,
-      "openai/widgetAccessible": true,
-    },
+    _meta: {},
   },
   async () => ({
     content: [
@@ -1333,11 +1329,7 @@ registerAppTool(
       openWorldHint: false,
       destructiveHint: false,
     },
-    _meta: {
-      ui: { resourceUri: ocpAdminResourceUri },
-      "openai/outputTemplate": ocpAdminResourceUri,
-      "openai/widgetAccessible": true,
-    },
+    _meta: {},
   },
   async () => {
     const connectivity = await checkConnectivity();
@@ -2405,7 +2397,6 @@ const registerOcpAdminUiResource = (uri: string, view?: string) => registerAppRe
   },
 );
 
-registerOcpAdminUiResource(ocpAdminResourceUri);
 registerOcpAdminUiResource(ocpInventoryViewUri, "inventory");
 registerOcpAdminUiResource(ocpDetailViewUri, "detail");
 registerOcpAdminUiResource(ocpCreatorViewUri, "creator");
