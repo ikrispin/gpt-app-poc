@@ -22,30 +22,6 @@ const server = new McpServer({
   version: "1.0.0",
 });
 
-const OCP_ADMIN_SKILL_RESOURCE_URI = "skill://ocp-admin/SKILL.md";
-const OCP_ADMIN_SKILL_RESOURCE_SOURCE_PATH = path.join(
-  __dirname,
-  "skills",
-  "ocp-admin",
-  "SKILL.md",
-);
-const SKILL_RESOURCE_MIME_TYPE = "text/markdown";
-const OCP_ADMIN_SKILL_RESOURCE_FALLBACK = `# OCP Admin
-
-Skill content is temporarily unavailable from the repository.
-URI: ${OCP_ADMIN_SKILL_RESOURCE_URI}`;
-
-const loadSkillMarkdown = async (sourcePath: string, fallback: string): Promise<string> => {
-  try {
-    return await fs.readFile(sourcePath, "utf-8");
-  } catch (_error) {
-    return fallback;
-  }
-};
-
-const loadOcpAdminSkillMarkdown = async (): Promise<string> => {
-  return loadSkillMarkdown(OCP_ADMIN_SKILL_RESOURCE_SOURCE_PATH, OCP_ADMIN_SKILL_RESOURCE_FALLBACK);
-};
 
 type OcpClusterRow = {
   name: string;
@@ -215,149 +191,16 @@ const loadWidgetHtml = async (workflowId: string): Promise<string> => {
 
 const loadOcpAdminWidgetHtml = async (): Promise<string> => loadWidgetHtml("ocp-admin");
 
-const SKILL_LOADERS: Record<string, () => Promise<string>> = {
-  [OCP_ADMIN_SKILL_RESOURCE_URI]: loadOcpAdminSkillMarkdown,
-};
 
-const GET_SKILL_INPUT_SCHEMA = z.object({ uri: z.string().min(1, "skill URI is required") });
 
-registerAppTool(
-  server,
-  "list_skills",
-  {
-    title: "List Available Skills",
-    description: "Returns canonical URI(s) for repo-local skills.",
-    inputSchema: z.object({}),
-    annotations: {
-      readOnlyHint: true,
-      openWorldHint: false,
-      destructiveHint: false,
-    },
-    _meta: {},
-  },
-  async () => ({
-    content: [
-      {
-        type: "text",
-        text: [
-          "Available skills:",
-          `  - ${OCP_ADMIN_SKILL_RESOURCE_URI}`,
-          "Use get_skill with a URI to load skill content.",
-        ].join("\n"),
-      },
-    ],
-  }),
-);
 
-registerAppTool(
-  server,
-  "get_skill",
-  {
-    title: "Get Skill Markdown",
-    description: "Returns markdown content for a registered skill URI.",
-    inputSchema: GET_SKILL_INPUT_SCHEMA,
-    annotations: {
-      readOnlyHint: true,
-      openWorldHint: false,
-      destructiveHint: false,
-    },
-    _meta: {},
-  },
-  async (args) => {
-    const normalizedUri = args.uri.trim();
-    if (!normalizedUri.startsWith("skill://")) {
-      return {
-        isError: true,
-        content: [
-          {
-            type: "text",
-            text: "Invalid URI. Provide a non-empty skill URI like skill://ocp-admin/SKILL.md.",
-          },
-        ],
-      };
-    }
-
-    const loader = SKILL_LOADERS[normalizedUri];
-    if (!loader) {
-      return {
-        isError: true,
-        content: [
-          {
-            type: "text",
-            text: [
-              `Unsupported skill URI: ${normalizedUri}`,
-              `Use list_skills to discover supported URIs. Currently supported: ${Object.keys(SKILL_LOADERS).join(", ")}`,
-            ].join("\n"),
-          },
-        ],
-      };
-    }
-
-    const markdown = await loader();
-    return {
-      content: [
-        {
-          type: "text",
-          text: [`URI: ${normalizedUri}`, "", markdown].join("\n"),
-        },
-      ],
-      structuredContent: {
-        uri: normalizedUri,
-        mimeType: SKILL_RESOURCE_MIME_TYPE,
-        text: markdown,
-      },
-    };
-  },
-);
-
-registerAppTool(
-  server,
-  "start_ocp_admin",
-  {
-    title: "Start OCP Admin Workflow",
-    description: "Returns skill routing guidance for OpenShift cluster administration.",
-    inputSchema: z.object({}),
-    annotations: {
-      readOnlyHint: true,
-      openWorldHint: false,
-      destructiveHint: false,
-    },
-    _meta: {
-      ui: { resourceUri: ocpAdminResourceUri },
-      "openai/outputTemplate": ocpAdminResourceUri,
-      "openai/widgetAccessible": true,
-    },
-  },
-  async () => ({
-    content: [
-      {
-        type: "text",
-        text: [
-          "OCP Admin persona activated.",
-          `Read the skill for detailed workflow instructions: ${OCP_ADMIN_SKILL_RESOURCE_URI}`,
-          "Available sub-skills: cluster-inventory (read-only cluster listing), cluster-creator (create and install OCP/SNO clusters)",
-          "Prerequisites: OFFLINE_TOKEN env var, openshift-self-managed and openshift-ocm-managed MCP servers",
-        ].join("\n"),
-      },
-    ],
-    structuredContent: {
-      persona: "ocp-admin",
-      skill_uri: OCP_ADMIN_SKILL_RESOURCE_URI,
-      available_skills: ["cluster-inventory", "cluster-creator"],
-      prerequisites: {
-        env_vars: ["OFFLINE_TOKEN"],
-        mcp_servers: ["openshift-self-managed", "openshift-ocm-managed"],
-      },
-    },
-  }),
-);
 
 registerAppTool(
   server,
   "check_ocp_prerequisites",
   {
     title: "Check OCP Admin Prerequisites",
-    description: "Checks whether required environment variables and MCP servers are available for OCP admin workflows.",
+    description: "Verifies that OFFLINE_TOKEN is set and that downstream MCP servers (openshift-self-managed, openshift-ocm-managed) are reachable. Call this before any cluster operation to confirm the environment is ready.",
     inputSchema: z.object({}),
     annotations: {
       readOnlyHint: true,
@@ -404,7 +247,7 @@ registerAppTool(
   "list_ocp_clusters",
   {
     title: "List OCP Clusters",
-    description: "Returns the current inventory of OpenShift clusters across all deployment types.",
+    description: "Returns the current inventory of OpenShift clusters across all deployment types (OCP, SNO, ROSA, ARO, OSD). Queries both self-managed (Assisted Installer) and managed service (OCM) APIs in parallel, merging results into a single list with name, ID, status, type, version, provider, and region.",
     inputSchema: z.object({}),
     annotations: {
       readOnlyHint: true,
@@ -465,7 +308,7 @@ registerAppTool(
   "get_cluster_info",
   {
     title: "Get Cluster Details",
-    description: "Returns detailed information about a specific OpenShift cluster by ID.",
+    description: "Returns detailed information about a specific OpenShift cluster including version, network config, VIPs, console URL, DNS domain, host count, and platform type. Requires cluster_id (UUID) and cluster_type (OCP, SNO, ROSA, ARO, or OSD) to route to the correct backend API.",
     inputSchema: z.object({
       cluster_id: z.string().min(1),
       cluster_type: z.string().min(1),
@@ -537,7 +380,7 @@ registerAppTool(
   "get_cluster_events",
   {
     title: "Get Cluster Events",
-    description: "Returns event history for a self-managed OpenShift cluster (OCP/SNO only).",
+    description: "Returns chronological event history for a self-managed OpenShift cluster (OCP/SNO only). Events include timestamps, severity levels, and messages useful for diagnosing installation failures and state transitions. Not available for managed clusters (ROSA/ARO/OSD).",
     inputSchema: z.object({
       cluster_id: z.string().min(1),
       cluster_type: z.string().min(1),
@@ -596,7 +439,7 @@ registerAppTool(
   "get_cluster_logs_url",
   {
     title: "Get Cluster Logs Download URL",
-    description: "Returns a download URL for cluster logs of a self-managed OpenShift cluster (OCP/SNO only).",
+    description: "Returns a presigned download URL for the logs bundle of a self-managed OpenShift cluster (OCP/SNO only). The logs include installation, validation, host discovery, and diagnostic data. The URL may expire; generate a new one if needed. Not available for managed clusters (ROSA/ARO/OSD).",
     inputSchema: z.object({
       cluster_id: z.string().min(1),
       cluster_type: z.string().min(1),
@@ -653,7 +496,7 @@ registerAppTool(
   "create_ocp_cluster",
   {
     title: "Create OpenShift Cluster",
-    description: "Creates a new self-managed OpenShift cluster via the Assisted Installer API.",
+    description: "Creates a new self-managed OpenShift cluster definition via the Assisted Installer API. Supports OCP (HA, high_availability_mode=Full) and SNO (single-node, high_availability_mode=None). Returns a cluster ID used for all subsequent operations (host registration, VIP config, installation). Does not start installation — use start_cluster_installation after configuring hosts and VIPs.",
     inputSchema: z.object({
       cluster_name: z.string().min(1).max(54),
       openshift_version: z.string().min(1),
@@ -707,7 +550,7 @@ registerAppTool(
   "get_cluster_hosts",
   {
     title: "Get Cluster Hosts",
-    description: "Returns registered hosts and discovery ISO URL for a self-managed OpenShift cluster.",
+    description: "Returns the list of registered hosts (hostname, status, role) and the discovery ISO download URL for a self-managed OpenShift cluster. Use after creating a cluster to check which hosts have booted from the discovery ISO and registered with the Assisted Installer.",
     inputSchema: z.object({
       cluster_id: z.string().min(1),
     }),
@@ -749,7 +592,7 @@ registerAppTool(
   "set_host_role",
   {
     title: "Set Host Role",
-    description: "Assigns a role (master or worker) to a host in a self-managed OpenShift cluster.",
+    description: "Assigns a role (master or worker) to a specific host in a self-managed OpenShift cluster. For HA clusters, at least 3 hosts must be assigned the master role. For SNO, the single host is assigned master. Requires user confirmation before calling.",
     inputSchema: z.object({
       cluster_id: z.string().min(1),
       host_id: z.string().min(1),
@@ -785,7 +628,7 @@ registerAppTool(
   "set_cluster_vips",
   {
     title: "Set Cluster VIPs",
-    description: "Configures API and Ingress Virtual IPs for a self-managed OpenShift cluster.",
+    description: "Configures API VIP and Ingress VIP for a self-managed HA OpenShift cluster. Required for baremetal, vsphere, and nutanix platforms before installation. Not needed for SNO clusters. Requires user confirmation before calling.",
     inputSchema: z.object({
       cluster_id: z.string().min(1),
       api_vip: z.string().min(1),
@@ -820,7 +663,7 @@ registerAppTool(
   "start_cluster_installation",
   {
     title: "Start Cluster Installation",
-    description: "Triggers installation of a self-managed OpenShift cluster. Requires hosts and VIPs to be configured.",
+    description: "Triggers installation of a self-managed OpenShift cluster. This is IRREVERSIBLE — once started, installation cannot be paused or cancelled. Requires hosts to be registered and roles assigned, and VIPs configured for HA clusters. Always require explicit user confirmation before calling. Monitor progress with get_installation_progress and get_cluster_events.",
     inputSchema: z.object({
       cluster_id: z.string().min(1),
     }),
@@ -848,7 +691,7 @@ registerAppTool(
   "get_installation_progress",
   {
     title: "Get Installation Progress",
-    description: "Returns current installation status and progress for a self-managed OpenShift cluster.",
+    description: "Returns current installation status (e.g. installing, installed, error), progress percentage, and status info for a self-managed OpenShift cluster. Use to monitor installation after calling start_cluster_installation. Typical installation takes 45-60 minutes.",
     inputSchema: z.object({
       cluster_id: z.string().min(1),
     }),
@@ -880,20 +723,6 @@ registerAppTool(
   },
 );
 
-server.registerResource(
-  "ocp-admin-skill",
-  OCP_ADMIN_SKILL_RESOURCE_URI,
-  { mimeType: SKILL_RESOURCE_MIME_TYPE },
-  async () => ({
-    contents: [
-      {
-        uri: OCP_ADMIN_SKILL_RESOURCE_URI,
-        mimeType: SKILL_RESOURCE_MIME_TYPE,
-        text: await loadOcpAdminSkillMarkdown(),
-      },
-    ],
-  }),
-);
 
 const registerOcpAdminUiResource = (uri: string) => registerAppResource(
   server,

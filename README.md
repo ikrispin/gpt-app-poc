@@ -23,7 +23,8 @@ See:
 
 - `src/` MCP server implementation and app logic
 - `mcp-app.html` single-file UI entry for the MCP app
-- `server.ts` local server entry
+- `server.ts` local server entry (pure tool/action layer)
+- `gpt-config/` GPT Store configuration (instructions + knowledge files)
 - `specs/` feature specifications (one folder per spec)
 
 ## Quick Start
@@ -42,12 +43,26 @@ See:
   - `npm run test:regression`
   - `npm run test:jira`
 
-## Runtime Skill Discovery
+## OCP Admin Actions (MCP Tools)
 
-- Canonical Engage skill resource URI: `skill://engage-red-hat-support/SKILL.md`
-- Repo-local skill source file: `skills/engage-red-hat-support/SKILL.md`
-- Read-only discovery tool: `list_skills` (returns text fallback plus the canonical URI)
-- Jira tools/contracts/tests remain unchanged by this feature.
+The MCP server exposes these tools that the GPT calls via its MCP Action connector:
+
+| Tool | Description |
+|------|-------------|
+| `check_ocp_prerequisites` | Verify environment and MCP server connectivity |
+| `list_ocp_clusters` | List all clusters across OCP, SNO, ROSA, ARO, OSD |
+| `get_cluster_info` | Get detailed cluster information by ID |
+| `get_cluster_events` | Get event history (self-managed only) |
+| `get_cluster_logs_url` | Get logs download URL (self-managed only) |
+| `create_ocp_cluster` | Create a new self-managed cluster definition |
+| `get_cluster_hosts` | Get registered hosts and discovery ISO URL |
+| `set_host_role` | Assign master/worker role to a host |
+| `set_cluster_vips` | Configure API and Ingress VIPs |
+| `start_cluster_installation` | Trigger cluster installation (irreversible) |
+| `get_installation_progress` | Get installation status and progress |
+
+Skill logic (intent routing, workflows, confirmations) lives in the GPT
+instructions, not in the MCP server. See `gpt-config/instructions.md`.
 
 ## Local Sosreport Tools (Phase 1)
 
