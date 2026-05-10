@@ -5,7 +5,7 @@ type JsonRpcResponse =
   | { jsonrpc: "2.0"; id: number; result: unknown }
   | { jsonrpc: "2.0"; id: number; error: { code: number; message: string } };
 
-test("ocp-admin UI resource registration, workflow meta tag, and tool linkage", async () => {
+test("ocp-admin UI view resources are registered and serve correct HTML", async () => {
   process.env.NODE_ENV = "test";
   const { createApp } = await import("../../server.js");
   const app = createApp();
@@ -52,47 +52,33 @@ test("ocp-admin UI resource registration, workflow meta tag, and tool linkage", 
   });
 
   try {
-    // ui://ocp-admin/app.html appears in resources/list
     const resources = (await jsonRpc("resources/list")) as {
       resources?: Array<{ uri?: string }>;
     };
     const uris = new Set((resources.resources ?? []).map((entry) => entry.uri));
-    assert.ok(
-      [...uris].some((u) => typeof u === "string" && u.startsWith("ui://ocp-admin/app.html")),
-      "missing ocp-admin UI resource in resources/list",
-    );
 
-    // ocp-admin UI resource serves HTML with gpt-app-workflow=ocp-admin meta tag
-    const ocpAdminUri = [...uris].find((u) => typeof u === "string" && u.startsWith("ui://ocp-admin/app.html"));
-    const ocpRead = (await jsonRpc("resources/read", { uri: ocpAdminUri })) as {
+    assert.ok([...uris].some((u) => u === "ui://ocp-admin/views/inventory.html"), "missing inventory view resource");
+    assert.ok([...uris].some((u) => u === "ui://ocp-admin/views/detail.html"), "missing detail view resource");
+    assert.ok([...uris].some((u) => u === "ui://ocp-admin/views/creator.html"), "missing creator view resource");
+    assert.ok([...uris].some((u) => u === "ui://ocp-admin/views/setup.html"), "missing setup view resource");
+
+    const inventoryRead = (await jsonRpc("resources/read", { uri: "ui://ocp-admin/views/inventory.html" })) as {
       contents?: Array<{ mimeType?: string; text?: string }>;
     };
-    assert.equal(ocpRead.contents?.[0]?.mimeType, "text/html;profile=mcp-app");
-    const ocpHtml = ocpRead.contents?.[0]?.text ?? "";
-    assert.ok(ocpHtml.includes('gpt-app-workflow'), "ocp-admin HTML must contain gpt-app-workflow meta tag");
-    assert.ok(ocpHtml.includes('ocp-admin'), "ocp-admin HTML workflow meta must contain ocp-admin");
+    assert.equal(inventoryRead.contents?.[0]?.mimeType, "text/html;profile=mcp-app");
+    const html = inventoryRead.contents?.[0]?.text ?? "";
+    assert.ok(html.includes('gpt-app-workflow'), "HTML must contain gpt-app-workflow meta tag");
+    assert.ok(html.includes('ocp-admin'), "HTML workflow meta must contain ocp-admin");
+    assert.ok(html.includes('gpt-app-view'), "HTML must contain gpt-app-view meta tag");
+    assert.ok(html.includes('"inventory"'), "inventory view HTML must contain inventory view meta");
 
-    // engage UI resource serves HTML with gpt-app-workflow=engage meta tag (regression)
-    const engageUri = [...uris].find((u) => typeof u === "string" && u.startsWith("ui://engage-red-hat-support/app.html"));
-    assert.ok(engageUri, "engage UI resource must still be registered");
-    const engageRead = (await jsonRpc("resources/read", { uri: engageUri })) as {
-      contents?: Array<{ mimeType?: string; text?: string }>;
-    };
-    const engageHtml = engageRead.contents?.[0]?.text ?? "";
-    assert.ok(engageHtml.includes('gpt-app-workflow'), "engage HTML must contain gpt-app-workflow meta tag");
-    assert.ok(engageHtml.includes('"engage"'), "engage HTML workflow meta must contain engage");
-
-    // start_ocp_admin tool references ocp-admin UI, not engage
     const tools = (await jsonRpc("tools/list")) as {
       tools?: Array<{ name: string; _meta?: Record<string, unknown> }>;
     };
-    const startTool = (tools.tools ?? []).find((t) => t.name === "start_ocp_admin");
-    assert.ok(startTool, "start_ocp_admin tool must exist");
-    const toolUi = (startTool?._meta?.ui as Record<string, unknown>)?.resourceUri;
-    assert.ok(
-      typeof toolUi === "string" && toolUi.startsWith("ui://ocp-admin/"),
-      `start_ocp_admin must reference ocp-admin UI, got: ${toolUi}`,
-    );
+    const listTool = (tools.tools ?? []).find((t) => t.name === "list_ocp_clusters");
+    assert.ok(listTool, "list_ocp_clusters tool must exist");
+    const listTemplate = listTool?._meta?.["openai/outputTemplate"];
+    assert.equal(listTemplate, "ui://ocp-admin/views/inventory.html", "list_ocp_clusters must use inventory view");
   } finally {
     srv.close();
   }
