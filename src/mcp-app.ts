@@ -18,6 +18,12 @@ const reactRoot = createRoot(appRoot);
 
 const app = new App({ name: "OCP Admin", version: "1.0.0" });
 
+try {
+  app.connect();
+} catch {
+  // connection may fail outside ChatGPT — tools still work via direct calls
+}
+
 const ocpWorkflowState: OcpAdminWorkflowState = { current_step: "cluster_inventory" };
 const ocpUiState: OcpAdminUiState = {
   statusMessage: "",
