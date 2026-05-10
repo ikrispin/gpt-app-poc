@@ -1,4 +1,4 @@
-export type OcpAdminStep = "prerequisites" | "cluster_inventory" | "cluster_creator" | "cluster_setup";
+export type OcpAdminStep = "cluster_inventory" | "cluster_creator" | "cluster_setup";
 
 export type OcpAdminWorkflowState = {
   current_step: OcpAdminStep;

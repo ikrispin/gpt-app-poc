@@ -963,7 +963,7 @@ const detectedWorkflow = document
   ?.getAttribute("content") ?? "engage";
 
 if (detectedWorkflow === "ocp-admin") {
-  const ocpWorkflowState: OcpAdminWorkflowState = { current_step: "prerequisites" };
+  const ocpWorkflowState: OcpAdminWorkflowState = { current_step: "cluster_inventory" };
   const ocpUiState: OcpAdminUiState = {
     statusMessage: "",
     statusVariant: "info",
@@ -1010,10 +1010,9 @@ if (detectedWorkflow === "ocp-admin") {
 
   const setOcpAdminStep = (step: OcpAdminStep) => {
     ocpWorkflowState.current_step = step;
-    if (step === "prerequisites") window.location.hash = "step-1";
-    else if (step === "cluster_inventory") window.location.hash = "step-2";
-    else if (step === "cluster_creator") window.location.hash = "step-3";
-    else if (step === "cluster_setup") window.location.hash = "step-4";
+    if (step === "cluster_inventory") window.location.hash = "step-1";
+    else if (step === "cluster_creator") window.location.hash = "step-2";
+    else if (step === "cluster_setup") window.location.hash = "step-3";
     ocpRender();
   };
 
@@ -1371,7 +1370,6 @@ if (detectedWorkflow === "ocp-admin") {
         statusVariant: ocpUiState.statusVariant,
         clusters: ocpUiState.clusters,
         isLoading: ocpUiState.isLoading,
-        prerequisiteResults: ocpUiState.prerequisiteResults,
         dataSource: ocpUiState.dataSource,
         selectedClusterId: ocpUiState.selectedClusterId,
         clusterDetail: ocpUiState.clusterDetail,
@@ -1385,11 +1383,9 @@ if (detectedWorkflow === "ocp-admin") {
         isCreating: ocpUiState.isCreating,
         creationResult: ocpUiState.creationResult,
         creationError: ocpUiState.creationError,
-        onNavigatePrerequisites: () => setOcpAdminStep("prerequisites"),
         onNavigateInventory: () => setOcpAdminStep("cluster_inventory"),
         onNavigateCreator: () => setOcpAdminStep("cluster_creator"),
         onLoadClusters,
-        onCheckPrerequisites,
         onSelectCluster,
         onBackToInventory,
         onLoadEvents,
@@ -1423,10 +1419,8 @@ if (detectedWorkflow === "ocp-admin") {
 
   const hash = window.location.hash.replace("#", "");
   if (hash === "step-2") {
-    ocpWorkflowState.current_step = "cluster_inventory";
-  } else if (hash === "step-3") {
     ocpWorkflowState.current_step = "cluster_creator";
-  } else if (hash === "step-4") {
+  } else if (hash === "step-3") {
     ocpWorkflowState.current_step = "cluster_setup";
   }
   ocpRender();

@@ -381,7 +381,7 @@ type ClusterCreatorContentProps = {
   creationError: string | null;
   onFieldChange: (field: string, value: string) => void;
   onSubmit: () => void;
-  onBackToInventory: () => void;
+  onNavigateInventory: () => void;
   onNavigateSetup: (clusterId: string) => void;
 };
 
@@ -403,7 +403,7 @@ const NETWORK_TYPE_OPTIONS = [
 
 export function ClusterCreatorContent({
   formState, isCreating, creationResult, creationError,
-  onFieldChange, onSubmit, onBackToInventory, onNavigateSetup,
+  onFieldChange, onSubmit, onNavigateInventory, onNavigateSetup,
 }: ClusterCreatorContentProps) {
   if (creationResult) {
     return (
@@ -434,7 +434,7 @@ export function ClusterCreatorContent({
           <ActionButtonAdapter id="ocp-creator-to-setup" variant="primary" onClick={() => onNavigateSetup(creationResult.clusterId)}>
             Continue to Setup
           </ActionButtonAdapter>
-          <ActionButtonAdapter id="ocp-creator-to-inventory" variant="secondary" onClick={onBackToInventory}>
+          <ActionButtonAdapter id="ocp-creator-to-inventory" variant="secondary" onClick={onNavigateInventory}>
             View in Inventory
           </ActionButtonAdapter>
         </div>
@@ -503,12 +503,9 @@ export function ClusterCreatorContent({
         />
       </div>
 
-      <div style={{ marginTop: "1.5rem", display: "flex", gap: "0.75rem" }}>
+      <div style={{ marginTop: "1.5rem" }}>
         <ActionButtonAdapter id="ocp-create-submit" variant="primary" isDisabled={!canSubmit} onClick={onSubmit}>
           Create Cluster
-        </ActionButtonAdapter>
-        <ActionButtonAdapter id="ocp-create-back" variant="secondary" onClick={onBackToInventory}>
-          Back
         </ActionButtonAdapter>
       </div>
     </div>

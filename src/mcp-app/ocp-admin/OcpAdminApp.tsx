@@ -1,6 +1,6 @@
-import type { ClusterCreationResult, ClusterCreatorFormState, ClusterDetailInfo, ClusterEvent, ClusterRow, DataSource, HostInfo, OcpAdminStep, PrerequisiteCheckResult, StatusVariant } from "./ocp-state";
+import type { ClusterCreationResult, ClusterCreatorFormState, ClusterDetailInfo, ClusterEvent, ClusterRow, DataSource, HostInfo, OcpAdminStep, StatusVariant } from "./ocp-state";
 import { StatusDisplayAdapter } from "../ui/status-display-adapter";
-import { PrerequisitesContent, ClusterInventoryContent, ClusterDetailContent, ClusterCreatorContent, ClusterSetupContent } from "./ocp-step-content";
+import { ClusterInventoryContent, ClusterDetailContent, ClusterCreatorContent, ClusterSetupContent } from "./ocp-step-content";
 
 type OcpAdminAppProps = {
   currentStep: OcpAdminStep;
@@ -8,7 +8,6 @@ type OcpAdminAppProps = {
   statusVariant: StatusVariant;
   clusters: ClusterRow[];
   isLoading: boolean;
-  prerequisiteResults: PrerequisiteCheckResult | null;
   dataSource: DataSource;
   selectedClusterId: string | null;
   clusterDetail: ClusterDetailInfo | null;
@@ -22,11 +21,9 @@ type OcpAdminAppProps = {
   isCreating: boolean;
   creationResult: ClusterCreationResult | null;
   creationError: string | null;
-  onNavigatePrerequisites: () => void;
   onNavigateInventory: () => void;
   onNavigateCreator: () => void;
   onLoadClusters: () => void;
-  onCheckPrerequisites: () => void;
   onSelectCluster: (clusterId: string) => void;
   onBackToInventory: () => void;
   onLoadEvents: () => void;
@@ -62,7 +59,6 @@ export function OcpAdminApp({
   statusVariant,
   clusters,
   isLoading,
-  prerequisiteResults,
   dataSource,
   selectedClusterId,
   clusterDetail,
@@ -76,11 +72,9 @@ export function OcpAdminApp({
   isCreating,
   creationResult,
   creationError,
-  onNavigatePrerequisites,
   onNavigateInventory,
   onNavigateCreator,
   onLoadClusters,
-  onCheckPrerequisites,
   onSelectCluster,
   onBackToInventory,
   onLoadEvents,
@@ -123,14 +117,6 @@ export function OcpAdminApp({
         <nav className="rhds-step-nav" aria-label="Section navigation">
           <button
             type="button"
-            className={`rhds-step-nav__item ${currentStep === "prerequisites" ? "rhds-step-nav__item--active" : ""}`}
-            aria-current={currentStep === "prerequisites" ? "page" : undefined}
-            onClick={onNavigatePrerequisites}
-          >
-            Prerequisites
-          </button>
-          <button
-            type="button"
             className={`rhds-step-nav__item ${currentStep === "cluster_inventory" ? "rhds-step-nav__item--active" : ""}`}
             aria-current={currentStep === "cluster_inventory" ? "page" : undefined}
             onClick={onNavigateInventory}
@@ -155,13 +141,6 @@ export function OcpAdminApp({
           </button>
         </nav>
         <div className="rhds-step-panel">
-          {currentStep === "prerequisites" && (
-            <PrerequisitesContent
-              onContinue={onNavigateInventory}
-              prerequisiteResults={prerequisiteResults}
-              onCheckPrerequisites={onCheckPrerequisites}
-            />
-          )}
           {currentStep === "cluster_inventory" && selectedClusterId !== null && (
             <ClusterDetailContent
               detail={clusterDetail}
@@ -219,7 +198,7 @@ export function OcpAdminApp({
               creationError={creationError}
               onFieldChange={onCreatorFieldChange}
               onSubmit={onCreateCluster}
-              onBackToInventory={() => { onBackToInventory(); onNavigateInventory(); }}
+              onNavigateInventory={onNavigateInventory}
               onNavigateSetup={onNavigateSetup}
             />
           )}
