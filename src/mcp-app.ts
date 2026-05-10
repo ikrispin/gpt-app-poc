@@ -7,7 +7,7 @@ import "./mcp-app/rhds-step0.css";
 import { EngageWorkflowApp } from "./mcp-app/App";
 import type { CpuTelemetryRow, FormState, StatusVariant, UiState, WorkflowState, WorkflowStep } from "./mcp-app/state";
 import { OcpAdminApp } from "./mcp-app/ocp-admin/OcpAdminApp";
-import type { OcpAdminStep, OcpAdminUiState, OcpAdminWorkflowState, PrerequisiteCheckResult, ClusterRow, ClusterEvent, ClusterCreatorFormState, ClusterCreationResult, HostInfo, DataSource, ClusterDetailInfo } from "./mcp-app/ocp-admin/ocp-state";
+import type { OcpAdminStep, OcpAdminView, OcpAdminUiState, OcpAdminWorkflowState, PrerequisiteCheckResult, ClusterRow, ClusterEvent, ClusterCreatorFormState, ClusterCreationResult, HostInfo, DataSource, ClusterDetailInfo } from "./mcp-app/ocp-admin/ocp-state";
 
 type ToolTextContent = { type: string; text?: string };
 type ToolResult = {
@@ -963,6 +963,10 @@ const detectedWorkflow = document
   ?.getAttribute("content") ?? "engage";
 
 if (detectedWorkflow === "ocp-admin") {
+  const detectedView = (document
+    .querySelector('meta[name="gpt-app-view"]')
+    ?.getAttribute("content") ?? "full") as OcpAdminView;
+
   const ocpWorkflowState: OcpAdminWorkflowState = { current_step: "cluster_inventory" };
   const ocpUiState: OcpAdminUiState = {
     statusMessage: "",
@@ -1365,6 +1369,7 @@ if (detectedWorkflow === "ocp-admin") {
   const ocpRender = () => {
     reactRoot.render(
       createElement(OcpAdminApp, {
+        view: detectedView,
         currentStep: ocpWorkflowState.current_step,
         statusMessage: ocpUiState.statusMessage,
         statusVariant: ocpUiState.statusVariant,

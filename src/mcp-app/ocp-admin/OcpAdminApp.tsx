@@ -1,8 +1,9 @@
-import type { ClusterCreationResult, ClusterCreatorFormState, ClusterDetailInfo, ClusterEvent, ClusterRow, DataSource, HostInfo, OcpAdminStep, StatusVariant } from "./ocp-state";
+import type { ClusterCreationResult, ClusterCreatorFormState, ClusterDetailInfo, ClusterEvent, ClusterRow, DataSource, HostInfo, OcpAdminStep, OcpAdminView, StatusVariant } from "./ocp-state";
 import { StatusDisplayAdapter } from "../ui/status-display-adapter";
 import { ClusterInventoryContent, ClusterDetailContent, ClusterCreatorContent, ClusterSetupContent } from "./ocp-step-content";
 
 type OcpAdminAppProps = {
+  view: OcpAdminView;
   currentStep: OcpAdminStep;
   statusMessage: string;
   statusVariant: StatusVariant;
@@ -53,56 +54,11 @@ type OcpAdminAppProps = {
   onPollProgress: () => void;
 };
 
-export function OcpAdminApp({
-  currentStep,
-  statusMessage,
-  statusVariant,
-  clusters,
-  isLoading,
-  dataSource,
-  selectedClusterId,
-  clusterDetail,
-  isLoadingDetail,
-  events,
-  isLoadingEvents,
-  eventsDataSource,
-  logsDownloadUrl,
-  isLoadingLogsUrl,
-  creatorForm,
-  isCreating,
-  creationResult,
-  creationError,
-  onNavigateInventory,
-  onNavigateCreator,
-  onLoadClusters,
-  onSelectCluster,
-  onBackToInventory,
-  onLoadEvents,
-  onGetLogsUrl,
-  onCreatorFieldChange,
-  onCreateCluster,
-  onNavigateSetup,
-  setupClusterId,
-  hosts,
-  isLoadingHosts,
-  discoveryIsoUrl,
-  apiVip,
-  ingressVip,
-  hostsDataSource,
-  onLoadHosts,
-  onSetHostRole,
-  onSetVips,
-  onVipFieldChange,
-  installationStatus,
-  installationProgress,
-  installationStatusInfo,
-  isStartingInstallation,
-  showInstallConfirm,
-  onShowInstallConfirm,
-  onCancelInstallConfirm,
-  onStartInstallation,
-  onPollProgress,
-}: OcpAdminAppProps) {
+export function OcpAdminApp(props: OcpAdminAppProps) {
+  const { view, statusMessage, statusVariant } = props;
+
+  const content = renderViewContent(props);
+
   return (
     <div className="rhds-shell">
       <header className="rhds-shell__header">
@@ -113,97 +69,114 @@ export function OcpAdminApp({
         <StatusDisplayAdapter message={statusMessage} variant={statusVariant} />
       )}
 
-      <section className="rhds-shell__wizard" aria-label="Administration sections">
-        <nav className="rhds-step-nav" aria-label="Section navigation">
-          <button
-            type="button"
-            className={`rhds-step-nav__item ${currentStep === "cluster_inventory" ? "rhds-step-nav__item--active" : ""}`}
-            aria-current={currentStep === "cluster_inventory" ? "page" : undefined}
-            onClick={onNavigateInventory}
-          >
-            Cluster Inventory
-          </button>
-          <button
-            type="button"
-            className={`rhds-step-nav__item ${currentStep === "cluster_creator" ? "rhds-step-nav__item--active" : ""}`}
-            aria-current={currentStep === "cluster_creator" ? "page" : undefined}
-            onClick={onNavigateCreator}
-          >
-            Create Cluster
-          </button>
-          <button
-            type="button"
-            className={`rhds-step-nav__item ${currentStep === "cluster_setup" ? "rhds-step-nav__item--active" : ""}`}
-            aria-current={currentStep === "cluster_setup" ? "page" : undefined}
-            onClick={() => onNavigateSetup(setupClusterId ?? "")}
-          >
-            Cluster Setup
-          </button>
-        </nav>
-        <div className="rhds-step-panel">
-          {currentStep === "cluster_inventory" && selectedClusterId !== null && (
-            <ClusterDetailContent
-              detail={clusterDetail}
-              isLoading={isLoadingDetail}
-              dataSource={dataSource}
-              onBack={onBackToInventory}
-              events={events}
-              isLoadingEvents={isLoadingEvents}
-              eventsDataSource={eventsDataSource}
-              logsDownloadUrl={logsDownloadUrl}
-              isLoadingLogsUrl={isLoadingLogsUrl}
-              onLoadEvents={onLoadEvents}
-              onGetLogsUrl={onGetLogsUrl}
-            />
-          )}
-          {currentStep === "cluster_inventory" && selectedClusterId === null && (
-            <ClusterInventoryContent
-              clusters={clusters}
-              isLoading={isLoading}
-              dataSource={dataSource}
-              onLoadClusters={onLoadClusters}
-              onSelectCluster={onSelectCluster}
-            />
-          )}
-          {currentStep === "cluster_setup" && (
-            <ClusterSetupContent
-              setupClusterId={setupClusterId}
-              hosts={hosts}
-              isLoadingHosts={isLoadingHosts}
-              discoveryIsoUrl={discoveryIsoUrl}
-              apiVip={apiVip}
-              ingressVip={ingressVip}
-              hostsDataSource={hostsDataSource}
-              onLoadHosts={onLoadHosts}
-              onSetHostRole={onSetHostRole}
-              onSetVips={onSetVips}
-              onVipFieldChange={onVipFieldChange}
-              onBackToInventory={() => { onBackToInventory(); onNavigateInventory(); }}
-              installationStatus={installationStatus}
-              installationProgress={installationProgress}
-              installationStatusInfo={installationStatusInfo}
-              isStartingInstallation={isStartingInstallation}
-              showInstallConfirm={showInstallConfirm}
-              onShowInstallConfirm={onShowInstallConfirm}
-              onCancelInstallConfirm={onCancelInstallConfirm}
-              onStartInstallation={onStartInstallation}
-              onPollProgress={onPollProgress}
-            />
-          )}
-          {currentStep === "cluster_creator" && (
-            <ClusterCreatorContent
-              formState={creatorForm}
-              isCreating={isCreating}
-              creationResult={creationResult}
-              creationError={creationError}
-              onFieldChange={onCreatorFieldChange}
-              onSubmit={onCreateCluster}
-              onNavigateInventory={onNavigateInventory}
-              onNavigateSetup={onNavigateSetup}
-            />
-          )}
-        </div>
-      </section>
+      {view === "full" ? renderFullLayout(props) : (
+        <section className="rhds-shell__wizard">
+          <div className="rhds-step-panel">{content}</div>
+        </section>
+      )}
     </div>
+  );
+}
+
+function renderViewContent(props: OcpAdminAppProps) {
+  const { view } = props;
+
+  if (view === "inventory") {
+    return (
+      <ClusterInventoryContent
+        clusters={props.clusters}
+        isLoading={props.isLoading}
+        dataSource={props.dataSource}
+        onLoadClusters={props.onLoadClusters}
+        onSelectCluster={props.onSelectCluster}
+      />
+    );
+  }
+
+  if (view === "detail") {
+    return (
+      <ClusterDetailContent
+        detail={props.clusterDetail}
+        isLoading={props.isLoadingDetail}
+        dataSource={props.dataSource}
+        onBack={props.onBackToInventory}
+        events={props.events}
+        isLoadingEvents={props.isLoadingEvents}
+        eventsDataSource={props.eventsDataSource}
+        logsDownloadUrl={props.logsDownloadUrl}
+        isLoadingLogsUrl={props.isLoadingLogsUrl}
+        onLoadEvents={props.onLoadEvents}
+        onGetLogsUrl={props.onGetLogsUrl}
+      />
+    );
+  }
+
+  if (view === "creator") {
+    return (
+      <ClusterCreatorContent
+        formState={props.creatorForm}
+        isCreating={props.isCreating}
+        creationResult={props.creationResult}
+        creationError={props.creationError}
+        onFieldChange={props.onCreatorFieldChange}
+        onSubmit={props.onCreateCluster}
+        onNavigateInventory={props.onNavigateInventory}
+        onNavigateSetup={props.onNavigateSetup}
+      />
+    );
+  }
+
+  if (view === "setup") {
+    return (
+      <ClusterSetupContent
+        setupClusterId={props.setupClusterId}
+        hosts={props.hosts}
+        isLoadingHosts={props.isLoadingHosts}
+        discoveryIsoUrl={props.discoveryIsoUrl}
+        apiVip={props.apiVip}
+        ingressVip={props.ingressVip}
+        hostsDataSource={props.hostsDataSource}
+        onLoadHosts={props.onLoadHosts}
+        onSetHostRole={props.onSetHostRole}
+        onSetVips={props.onSetVips}
+        onVipFieldChange={props.onVipFieldChange}
+        onBackToInventory={() => { props.onBackToInventory(); props.onNavigateInventory(); }}
+        installationStatus={props.installationStatus}
+        installationProgress={props.installationProgress}
+        installationStatusInfo={props.installationStatusInfo}
+        isStartingInstallation={props.isStartingInstallation}
+        showInstallConfirm={props.showInstallConfirm}
+        onShowInstallConfirm={props.onShowInstallConfirm}
+        onCancelInstallConfirm={props.onCancelInstallConfirm}
+        onStartInstallation={props.onStartInstallation}
+        onPollProgress={props.onPollProgress}
+      />
+    );
+  }
+
+  return null;
+}
+
+function renderFullLayout(props: OcpAdminAppProps) {
+  return (
+    <section className="rhds-shell__wizard" aria-label="Administration sections">
+      <nav className="rhds-step-nav" aria-label="Section navigation">
+        <button type="button" className={`rhds-step-nav__item ${props.currentStep === "cluster_inventory" ? "rhds-step-nav__item--active" : ""}`} aria-current={props.currentStep === "cluster_inventory" ? "page" : undefined} onClick={props.onNavigateInventory}>
+          Cluster Inventory
+        </button>
+        <button type="button" className={`rhds-step-nav__item ${props.currentStep === "cluster_creator" ? "rhds-step-nav__item--active" : ""}`} aria-current={props.currentStep === "cluster_creator" ? "page" : undefined} onClick={props.onNavigateCreator}>
+          Create Cluster
+        </button>
+        <button type="button" className={`rhds-step-nav__item ${props.currentStep === "cluster_setup" ? "rhds-step-nav__item--active" : ""}`} aria-current={props.currentStep === "cluster_setup" ? "page" : undefined} onClick={() => props.onNavigateSetup(props.setupClusterId ?? "")}>
+          Cluster Setup
+        </button>
+      </nav>
+      <div className="rhds-step-panel">
+        {props.currentStep === "cluster_inventory" && props.selectedClusterId !== null && renderViewContent({ ...props, view: "detail" })}
+        {props.currentStep === "cluster_inventory" && props.selectedClusterId === null && renderViewContent({ ...props, view: "inventory" })}
+        {props.currentStep === "cluster_creator" && renderViewContent({ ...props, view: "creator" })}
+        {props.currentStep === "cluster_setup" && renderViewContent({ ...props, view: "setup" })}
+      </div>
+    </section>
   );
 }

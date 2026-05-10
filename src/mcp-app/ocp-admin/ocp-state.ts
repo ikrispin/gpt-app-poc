@@ -1,4 +1,5 @@
 export type OcpAdminStep = "cluster_inventory" | "cluster_creator" | "cluster_setup";
+export type OcpAdminView = "full" | "inventory" | "detail" | "creator" | "setup";
 
 export type OcpAdminWorkflowState = {
   current_step: OcpAdminStep;
