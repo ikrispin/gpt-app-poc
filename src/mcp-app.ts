@@ -3,7 +3,7 @@ import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import "./mcp-app/rhds-step0.css";
 import { OcpAdminApp } from "./mcp-app/ocp-admin/OcpAdminApp";
-import type { OcpAdminView, OcpAdminUiState, PrerequisiteCheckResult, ClusterRow, ClusterEvent, ClusterCreatorFormState, ClusterCreationResult, HostInfo, DataSource, ClusterDetailInfo } from "./mcp-app/ocp-admin/ocp-state";
+import type { OcpAdminStep, OcpAdminUiState, OcpAdminWorkflowState, PrerequisiteCheckResult, ClusterRow, ClusterEvent, ClusterCreatorFormState, ClusterCreationResult, HostInfo, DataSource, ClusterDetailInfo } from "./mcp-app/ocp-admin/ocp-state";
 
 type ToolTextContent = { type: string; text?: string };
 type ToolResult = {
@@ -18,10 +18,7 @@ const reactRoot = createRoot(appRoot);
 
 const app = new App({ name: "OCP Admin", version: "1.0.0" });
 
-const detectedView = (document
-  .querySelector('meta[name="gpt-app-view"]')
-  ?.getAttribute("content") ?? "inventory") as OcpAdminView;
-
+const ocpWorkflowState: OcpAdminWorkflowState = { current_step: "cluster_inventory" };
 const ocpUiState: OcpAdminUiState = {
   statusMessage: "",
   statusVariant: "info",
@@ -64,6 +61,14 @@ const ocpUiState: OcpAdminUiState = {
 const setOcpStatus = (message: string, variant: OcpAdminUiState["statusVariant"]) => {
   ocpUiState.statusMessage = message;
   ocpUiState.statusVariant = variant;
+};
+
+const setOcpAdminStep = (step: OcpAdminStep) => {
+  ocpWorkflowState.current_step = step;
+  if (step === "cluster_inventory") window.location.hash = "step-1";
+  else if (step === "cluster_creator") window.location.hash = "step-2";
+  else if (step === "cluster_setup") window.location.hash = "step-3";
+  ocpRender();
 };
 
 const ocpCallTool = async (
@@ -261,10 +266,10 @@ const onNavigateSetup = (clusterId: string) => {
   if (clusterId) {
     ocpUiState.setupClusterId = clusterId;
   }
+  setOcpAdminStep("cluster_setup");
   if (ocpUiState.hosts.length === 0 && ocpUiState.setupClusterId) {
     void onLoadHosts();
   }
-  ocpRender();
 };
 
 const onLoadHosts = async () => {
@@ -415,7 +420,7 @@ const onPollProgress = async () => {
 const ocpRender = () => {
   reactRoot.render(
     createElement(OcpAdminApp, {
-      view: detectedView,
+      currentStep: ocpWorkflowState.current_step,
       statusMessage: ocpUiState.statusMessage,
       statusVariant: ocpUiState.statusVariant,
       clusters: ocpUiState.clusters,
@@ -433,7 +438,8 @@ const ocpRender = () => {
       isCreating: ocpUiState.isCreating,
       creationResult: ocpUiState.creationResult,
       creationError: ocpUiState.creationError,
-      onNavigateInventory: () => ocpRender(),
+      onNavigateInventory: () => setOcpAdminStep("cluster_inventory"),
+      onNavigateCreator: () => setOcpAdminStep("cluster_creator"),
       onLoadClusters,
       onSelectCluster,
       onBackToInventory,
@@ -466,5 +472,11 @@ const ocpRender = () => {
   );
 };
 
+const hash = window.location.hash.replace("#", "");
+if (hash === "step-2") {
+  ocpWorkflowState.current_step = "cluster_creator";
+} else if (hash === "step-3") {
+  ocpWorkflowState.current_step = "cluster_setup";
+}
 ocpRender();
 void onCheckPrerequisites();
