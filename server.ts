@@ -122,74 +122,46 @@ const createMockCluster = (params: { cluster_name: string; openshift_version: st
 });
 
 const widgetResourceVersion = process.env.WIDGET_RESOURCE_VERSION?.trim();
-const ocpAdminResourceUri = widgetResourceVersion
-  ? `ui://ocp-admin/app.html?v=${encodeURIComponent(widgetResourceVersion)}`
-  : "ui://ocp-admin/app.html";
+const inventoryResourceUri = widgetResourceVersion
+  ? `ui://ocp-admin/inventory.html?v=${encodeURIComponent(widgetResourceVersion)}`
+  : "ui://ocp-admin/inventory.html";
+const creatorResourceUri = widgetResourceVersion
+  ? `ui://ocp-admin/creator.html?v=${encodeURIComponent(widgetResourceVersion)}`
+  : "ui://ocp-admin/creator.html";
 const widgetBuildId = widgetResourceVersion || `build-${Date.now()}`;
 const DEFAULT_WIDGET_DOMAIN = "https://leisured-carina-unpromotable.ngrok-free.dev";
 
-
-const loadRawWidgetHtml = async (): Promise<string> => {
-  try {
-    return await fs.readFile(
-      path.join(__dirname, "dist", "mcp-app.html"),
-      "utf-8",
-    );
-  } catch (_error) {
-    return `<!doctype html>
+const FALLBACK_HTML = `<!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>OCP Admin</title>
-    <style>
-      body { margin: 0; padding: 1.5rem; font-family: sans-serif; }
-      main { max-width: 52rem; margin: 0 auto; }
-    </style>
+  <head><meta charset="utf-8" /><title>OCP Admin</title>
+    <style>body { margin: 0; padding: 1.5rem; font-family: sans-serif; } main { max-width: 52rem; margin: 0 auto; }</style>
   </head>
-  <body>
-    <main>
-      <h1>OCP Admin</h1>
-      <p>UI bundle unavailable.</p>
-    </main>
-  </body>
+  <body><main><h1>OCP Admin</h1><p>UI bundle unavailable.</p></main></body>
 </html>`;
+
+const loadRawHtml = async (filename: string): Promise<string> => {
+  try {
+    return await fs.readFile(path.join(__dirname, "dist", filename), "utf-8");
+  } catch (_error) {
+    return FALLBACK_HTML;
   }
 };
 
 const injectWidgetMeta = (html: string, workflowId: string): string => {
   const widgetDomain = process.env.WIDGET_DOMAIN?.trim() || DEFAULT_WIDGET_DOMAIN;
-  const escapedWidgetDomain = widgetDomain
-    .replace(/&/g, "&amp;")
-    .replace(/"/g, "&quot;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-  const escapedWidgetBuildId = widgetBuildId
-    .replace(/&/g, "&amp;")
-    .replace(/"/g, "&quot;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-  const escapedWorkflowId = workflowId
-    .replace(/&/g, "&amp;")
-    .replace(/"/g, "&quot;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+  const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const metaTags = [
-    `<meta name="gpt-app-api-base" content="${escapedWidgetDomain}" />`,
-    `<meta name="gpt-app-build-id" content="${escapedWidgetBuildId}" />`,
-    `<meta name="gpt-app-workflow" content="${escapedWorkflowId}" />`,
-  ];
-  const metaInjection = metaTags.join("");
+    `<meta name="gpt-app-api-base" content="${escape(widgetDomain)}" />`,
+    `<meta name="gpt-app-build-id" content="${escape(widgetBuildId)}" />`,
+    `<meta name="gpt-app-workflow" content="${escape(workflowId)}" />`,
+  ].join("");
   return html.includes("</head>")
-    ? html.replace("</head>", `${metaInjection}</head>`)
-    : `${metaInjection}${html}`;
+    ? html.replace("</head>", `${metaTags}</head>`)
+    : `${metaTags}${html}`;
 };
 
-const loadWidgetHtml = async (workflowId: string): Promise<string> => {
-  const rawHtml = await loadRawWidgetHtml();
-  return injectWidgetMeta(rawHtml, workflowId);
-};
-
-const loadOcpAdminWidgetHtml = async (): Promise<string> => loadWidgetHtml("ocp-admin");
+const loadInventoryHtml = async (): Promise<string> => injectWidgetMeta(await loadRawHtml("mcp-app-inventory.html"), "inventory");
+const loadCreatorHtml = async (): Promise<string> => injectWidgetMeta(await loadRawHtml("mcp-app-creator.html"), "creator");
 
 
 
@@ -207,11 +179,7 @@ registerAppTool(
       openWorldHint: false,
       destructiveHint: false,
     },
-    _meta: {
-      ui: { resourceUri: ocpAdminResourceUri },
-      "openai/outputTemplate": ocpAdminResourceUri,
-      "openai/widgetAccessible": true,
-    },
+    _meta: {},
   },
   async () => {
     const connectivity = await checkConnectivity();
@@ -255,8 +223,8 @@ registerAppTool(
       destructiveHint: false,
     },
     _meta: {
-      ui: { resourceUri: ocpAdminResourceUri },
-      "openai/outputTemplate": ocpAdminResourceUri,
+      ui: { resourceUri: inventoryResourceUri },
+      "openai/outputTemplate": inventoryResourceUri,
       "openai/widgetAccessible": true,
     },
   },
@@ -319,8 +287,8 @@ registerAppTool(
       destructiveHint: false,
     },
     _meta: {
-      ui: { resourceUri: ocpAdminResourceUri },
-      "openai/outputTemplate": ocpAdminResourceUri,
+      ui: { resourceUri: inventoryResourceUri },
+      "openai/outputTemplate": inventoryResourceUri,
       "openai/widgetAccessible": true,
     },
   },
@@ -391,8 +359,8 @@ registerAppTool(
       destructiveHint: false,
     },
     _meta: {
-      ui: { resourceUri: ocpAdminResourceUri },
-      "openai/outputTemplate": ocpAdminResourceUri,
+      ui: { resourceUri: inventoryResourceUri },
+      "openai/outputTemplate": inventoryResourceUri,
       "openai/widgetAccessible": true,
     },
   },
@@ -450,8 +418,8 @@ registerAppTool(
       destructiveHint: false,
     },
     _meta: {
-      ui: { resourceUri: ocpAdminResourceUri },
-      "openai/outputTemplate": ocpAdminResourceUri,
+      ui: { resourceUri: inventoryResourceUri },
+      "openai/outputTemplate": inventoryResourceUri,
       "openai/widgetAccessible": true,
     },
   },
@@ -510,8 +478,8 @@ registerAppTool(
       destructiveHint: false,
     },
     _meta: {
-      ui: { resourceUri: ocpAdminResourceUri },
-      "openai/outputTemplate": ocpAdminResourceUri,
+      ui: { resourceUri: creatorResourceUri },
+      "openai/outputTemplate": creatorResourceUri,
       "openai/widgetAccessible": true,
     },
   },
@@ -556,8 +524,8 @@ registerAppTool(
     }),
     annotations: { readOnlyHint: true, openWorldHint: false, destructiveHint: false },
     _meta: {
-      ui: { resourceUri: ocpAdminResourceUri },
-      "openai/outputTemplate": ocpAdminResourceUri,
+      ui: { resourceUri: creatorResourceUri },
+      "openai/outputTemplate": creatorResourceUri,
       "openai/widgetAccessible": true,
     },
   },
@@ -600,8 +568,8 @@ registerAppTool(
     }),
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
     _meta: {
-      ui: { resourceUri: ocpAdminResourceUri },
-      "openai/outputTemplate": ocpAdminResourceUri,
+      ui: { resourceUri: creatorResourceUri },
+      "openai/outputTemplate": creatorResourceUri,
       "openai/widgetAccessible": true,
     },
   },
@@ -636,8 +604,8 @@ registerAppTool(
     }),
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
     _meta: {
-      ui: { resourceUri: ocpAdminResourceUri },
-      "openai/outputTemplate": ocpAdminResourceUri,
+      ui: { resourceUri: creatorResourceUri },
+      "openai/outputTemplate": creatorResourceUri,
       "openai/widgetAccessible": true,
     },
   },
@@ -669,8 +637,8 @@ registerAppTool(
     }),
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: true },
     _meta: {
-      ui: { resourceUri: ocpAdminResourceUri },
-      "openai/outputTemplate": ocpAdminResourceUri,
+      ui: { resourceUri: creatorResourceUri },
+      "openai/outputTemplate": creatorResourceUri,
       "openai/widgetAccessible": true,
     },
   },
@@ -697,8 +665,8 @@ registerAppTool(
     }),
     annotations: { readOnlyHint: true, openWorldHint: false, destructiveHint: false },
     _meta: {
-      ui: { resourceUri: ocpAdminResourceUri },
-      "openai/outputTemplate": ocpAdminResourceUri,
+      ui: { resourceUri: creatorResourceUri },
+      "openai/outputTemplate": creatorResourceUri,
       "openai/widgetAccessible": true,
     },
   },
@@ -724,13 +692,13 @@ registerAppTool(
 );
 
 
-const registerOcpAdminUiResource = (uri: string) => registerAppResource(
+const registerUiResource = (uri: string, loadHtml: () => Promise<string>) => registerAppResource(
   server,
   uri,
   uri,
   { mimeType: RESOURCE_MIME_TYPE },
   async () => {
-    const html = await loadOcpAdminWidgetHtml();
+    const html = await loadHtml();
     const widgetDomain = process.env.WIDGET_DOMAIN?.trim() || DEFAULT_WIDGET_DOMAIN;
     return {
       contents: [
@@ -750,7 +718,8 @@ const registerOcpAdminUiResource = (uri: string) => registerAppResource(
   },
 );
 
-registerOcpAdminUiResource(ocpAdminResourceUri);
+registerUiResource(inventoryResourceUri, loadInventoryHtml);
+registerUiResource(creatorResourceUri, loadCreatorHtml);
 
 export const createApp = () => {
   const app = express();

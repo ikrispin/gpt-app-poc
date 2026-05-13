@@ -155,7 +155,7 @@ const onSetupCluster = async (clusterId: string) => {
   try {
     await app.sendMessage({
       role: "user",
-      content: { type: "text", text: `Set up cluster ${name} (ID: ${clusterId})` },
+      content: [{ type: "text", text: `Set up cluster ${name} (ID: ${clusterId})` }],
     });
   } catch {
     setStatus("Could not send setup request to chat. Please type it manually.", "warning");
