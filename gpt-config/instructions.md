@@ -12,6 +12,7 @@ Match the user's request to the correct skill. Detailed workflows for each skill
 |---|---|---|
 | Create cluster, install OpenShift, deploy SNO/HA, provision cluster | cluster-creator | SKILL-cluster-creator.md |
 | List clusters, cluster status/details/events, installation progress | cluster-inventory | SKILL-cluster-inventory.md |
+| "Set up cluster X (ID: ...)" — sent from inventory UI Setup button | cluster-setup | Call `get_cluster_hosts` with the cluster ID to start the setup workflow |
 
 If the request doesn't clearly match, ask the user to clarify.
 
