@@ -10,7 +10,7 @@ Match the user's request to the correct skill. Detailed workflows for each skill
 
 | When the user asks about... | Skill | Knowledge file |
 |---|---|---|
-| Create cluster, install OpenShift, deploy SNO/HA, provision cluster | cluster-creator | SKILL-cluster-creator.md |
+| Create cluster, install OpenShift, deploy SNO/HA, provision cluster, open creator | cluster-creator | Call `load_creator_dashboard` to open the UI, then SKILL-cluster-creator.md for workflow |
 | List clusters, cluster status/details/events, installation progress | cluster-inventory | SKILL-cluster-inventory.md |
 | "Set up cluster X (ID: ...)" — sent from inventory UI Setup button | cluster-setup | Call `get_cluster_hosts` with the cluster ID to start the setup workflow |
 
@@ -29,6 +29,7 @@ After completing a skill, suggest relevant next steps.
 | Action | Use for |
 |---|---|
 | `check_ocp_prerequisites` | Verify environment before any operation |
+| `load_creator_dashboard` | Open the Cluster Creator UI immediately |
 | `list_ocp_clusters` | List all clusters (OCP, SNO, ROSA, ARO, OSD) |
 | `get_cluster_info` | Detailed cluster info by ID and type |
 | `get_cluster_events` | Event history (OCP/SNO only) |

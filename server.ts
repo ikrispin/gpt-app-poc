@@ -212,6 +212,29 @@ registerAppTool(
 
 registerAppTool(
   server,
+  "load_creator_dashboard",
+  {
+    title: "Open Cluster Creator",
+    description: "Opens the Cluster Creator dashboard for creating and setting up self-managed OpenShift clusters. Use when the user wants to create a new cluster or set up an existing one.",
+    inputSchema: z.object({}),
+    annotations: {
+      readOnlyHint: true,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+    _meta: {
+      ui: { resourceUri: creatorResourceUri },
+      "openai/outputTemplate": creatorResourceUri,
+      "openai/widgetAccessible": true,
+    },
+  },
+  async () => ({
+    content: [{ type: "text", text: "Cluster Creator dashboard loaded." }],
+  }),
+);
+
+registerAppTool(
+  server,
   "list_ocp_clusters",
   {
     title: "List OCP Clusters",
