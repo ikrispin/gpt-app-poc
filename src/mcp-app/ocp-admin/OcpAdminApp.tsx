@@ -25,12 +25,18 @@ type OcpAdminAppProps = {
   onNavigateCreator: () => void;
   onLoadClusters: () => void;
   onSelectCluster: (clusterId: string) => void;
+  onSearchQueryChange: (query: string) => void;
+  onLookupCluster: () => void;
+  searchQuery: string;
+  isLookingUp: boolean;
+  lookupError: string | null;
   onBackToInventory: () => void;
   onLoadEvents: () => void;
   onGetLogsUrl: () => void;
   onCreatorFieldChange: (field: string, value: string) => void;
   onCreateCluster: () => void;
   onNavigateSetup: (clusterId: string) => void;
+  onSetupCluster: (clusterId: string) => void;
   setupClusterId: string | null;
   hosts: HostInfo[];
   isLoadingHosts: boolean;
@@ -76,12 +82,18 @@ export function OcpAdminApp({
   onNavigateCreator,
   onLoadClusters,
   onSelectCluster,
+  onSearchQueryChange,
+  onLookupCluster,
+  searchQuery,
+  isLookingUp,
+  lookupError,
   onBackToInventory,
   onLoadEvents,
   onGetLogsUrl,
   onCreatorFieldChange,
   onCreateCluster,
   onNavigateSetup,
+  onSetupCluster,
   setupClusterId,
   hosts,
   isLoadingHosts,
@@ -148,6 +160,12 @@ export function OcpAdminApp({
               dataSource={dataSource}
               onLoadClusters={onLoadClusters}
               onSelectCluster={onSelectCluster}
+              onSetupCluster={onSetupCluster}
+              onSearchQueryChange={onSearchQueryChange}
+              onLookupCluster={onLookupCluster}
+              searchQuery={searchQuery}
+              isLookingUp={isLookingUp}
+              lookupError={lookupError}
             />
           )}
           {currentStep === "cluster_creator" && (

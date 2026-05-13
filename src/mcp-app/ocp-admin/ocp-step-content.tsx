@@ -75,7 +75,16 @@ type ClusterInventoryContentProps = {
   dataSource: DataSource;
   onLoadClusters: () => void;
   onSelectCluster: (clusterId: string) => void;
+  onSetupCluster: (clusterId: string) => void;
+  onSearchQueryChange: (query: string) => void;
+  onLookupCluster: () => void;
+  searchQuery: string;
+  isLookingUp: boolean;
+  lookupError: string | null;
 };
+
+const SETUPABLE_STATES = new Set(["pending-for-input", "insufficient", "ready"]);
+const INVENTORY_SELF_MANAGED_TYPES = new Set(["OCP", "SNO"]);
 
 const STATUS_DISPLAY: Record<string, string> = {
   ready: "ready",
@@ -118,7 +127,7 @@ function DataSourceBadge({ dataSource }: { dataSource: DataSource }) {
   );
 }
 
-export function ClusterInventoryContent({ clusters, isLoading, dataSource, onLoadClusters, onSelectCluster }: ClusterInventoryContentProps) {
+export function ClusterInventoryContent({ clusters, isLoading, dataSource, onLoadClusters, onSelectCluster, onSetupCluster, onSearchQueryChange, onLookupCluster, searchQuery, isLookingUp, lookupError }: ClusterInventoryContentProps) {
   if (clusters.length === 0 && !isLoading) {
     return (
       <div className="rhds-step-form">
@@ -140,11 +149,51 @@ export function ClusterInventoryContent({ clusters, isLoading, dataSource, onLoa
     );
   }
 
+  const query = searchQuery.trim().toLowerCase();
+  const filteredClusters = query
+    ? clusters.filter((c) => c.name.toLowerCase().includes(query) || c.id.toLowerCase().includes(query))
+    : clusters;
+
   return (
     <div className="rhds-step-form">
       <h2 className="rhds-step-form__heading">Cluster Inventory</h2>
       <DataSourceBadge dataSource={dataSource} />
       <p style={{ fontWeight: 600, marginBottom: "1rem" }}>{buildSummary(clusters)}</p>
+
+      <div style={{ marginBottom: "1rem" }}>
+        <label htmlFor="cluster-search" style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, marginBottom: "0.25rem" }}>
+          Search by name or lookup by cluster ID
+        </label>
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "stretch" }}>
+          <input
+            id="cluster-search"
+            type="text"
+            className="rhds-input"
+            value={searchQuery}
+            placeholder="e.g. prod-ocp or 762df996-acba-..."
+            onChange={(e) => onSearchQueryChange(e.target.value)}
+            style={{ flex: "1 1 0", minWidth: 0, padding: "0.35rem 0.5rem", fontSize: "0.85rem", border: "1px solid var(--rhds-border-subtle, #d2d2d2)", borderRadius: "3px", boxSizing: "border-box" }}
+          />
+          <button
+            type="button"
+            disabled={!searchQuery.trim() || isLookingUp}
+            onClick={onLookupCluster}
+            style={{ flexShrink: 0, padding: "0.35rem 0.75rem", fontSize: "0.85rem", cursor: searchQuery.trim() && !isLookingUp ? "pointer" : "default", backgroundColor: "#06c", color: "#fff", border: "none", borderRadius: "3px", opacity: !searchQuery.trim() || isLookingUp ? 0.5 : 1, whiteSpace: "nowrap" }}
+          >
+            {isLookingUp ? "Looking up..." : "Lookup by ID"}
+          </button>
+        </div>
+      </div>
+
+      {lookupError && (
+        <p style={{ fontSize: "0.85rem", color: "#c9190b", marginBottom: "0.75rem" }}>{lookupError}</p>
+      )}
+
+      {query && filteredClusters.length === 0 && (
+        <p style={{ fontSize: "0.85rem", color: "var(--rhds-text-muted, #4f5255)", marginBottom: "0.75rem" }}>
+          No loaded clusters match "{searchQuery.trim()}". Use <strong>Lookup by ID</strong> to search directly by cluster ID.
+        </p>
+      )}
 
       <div style={{ overflowX: "auto" }}>
         <table className="rhds-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
@@ -156,10 +205,13 @@ export function ClusterInventoryContent({ clusters, isLoading, dataSource, onLoa
               <th style={{ textAlign: "left", padding: "0.5rem", borderBottom: "2px solid var(--rhds-border-subtle, #d2d2d2)" }}>Version</th>
               <th style={{ textAlign: "left", padding: "0.5rem", borderBottom: "2px solid var(--rhds-border-subtle, #d2d2d2)" }}>Provider</th>
               <th style={{ textAlign: "left", padding: "0.5rem", borderBottom: "2px solid var(--rhds-border-subtle, #d2d2d2)" }}>Region</th>
+              <th style={{ textAlign: "left", padding: "0.5rem", borderBottom: "2px solid var(--rhds-border-subtle, #d2d2d2)" }}>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {clusters.map((cluster) => (
+            {filteredClusters.map((cluster) => {
+              const canSetup = SETUPABLE_STATES.has(cluster.status) && INVENTORY_SELF_MANAGED_TYPES.has(cluster.type);
+              return (
               <tr key={cluster.id}>
                 <td style={{ padding: "0.5rem", borderBottom: "1px solid var(--rhds-border-subtle, #d2d2d2)" }}>
                   <button
@@ -176,8 +228,20 @@ export function ClusterInventoryContent({ clusters, isLoading, dataSource, onLoa
                 <td style={{ padding: "0.5rem", borderBottom: "1px solid var(--rhds-border-subtle, #d2d2d2)" }}>{cluster.version}</td>
                 <td style={{ padding: "0.5rem", borderBottom: "1px solid var(--rhds-border-subtle, #d2d2d2)" }}>{cluster.provider}</td>
                 <td style={{ padding: "0.5rem", borderBottom: "1px solid var(--rhds-border-subtle, #d2d2d2)" }}>{cluster.region}</td>
+                <td style={{ padding: "0.5rem", borderBottom: "1px solid var(--rhds-border-subtle, #d2d2d2)" }}>
+                  {canSetup ? (
+                    <button
+                      type="button"
+                      onClick={() => onSetupCluster(cluster.id)}
+                      style={{ fontSize: "0.8rem", padding: "0.2rem 0.6rem", cursor: "pointer", backgroundColor: "#06c", color: "#fff", border: "none", borderRadius: "3px" }}
+                    >
+                      Setup
+                    </button>
+                  ) : null}
+                </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

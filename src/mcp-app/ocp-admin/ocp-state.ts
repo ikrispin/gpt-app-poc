@@ -113,4 +113,7 @@ export type OcpAdminUiState = {
   installationStatusInfo: string | null;
   isStartingInstallation: boolean;
   showInstallConfirm: boolean;
+  searchQuery: string;
+  isLookingUp: boolean;
+  lookupError: string | null;
 };

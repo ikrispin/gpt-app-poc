@@ -62,6 +62,9 @@ const ocpUiState: OcpAdminUiState = {
   installationStatusInfo: null,
   isStartingInstallation: false,
   showInstallConfirm: false,
+  searchQuery: "",
+  isLookingUp: false,
+  lookupError: null,
 };
 
 const setOcpStatus = (message: string, variant: OcpAdminUiState["statusVariant"]) => {
@@ -168,6 +171,48 @@ const onBackToInventory = () => {
   ocpUiState.isLoadingLogsUrl = false;
   ocpUiState.eventsDataSource = null;
   setOcpStatus("", "info");
+  ocpRender();
+};
+
+const onSearchQueryChange = (query: string) => {
+  ocpUiState.searchQuery = query;
+  ocpUiState.lookupError = null;
+  ocpRender();
+};
+
+const onLookupCluster = async () => {
+  const query = ocpUiState.searchQuery.trim();
+  if (!query) return;
+
+  ocpUiState.isLookingUp = true;
+  ocpUiState.lookupError = null;
+  ocpRender();
+
+  const clusterTypes = ["OCP", "ROSA"];
+  let detail: ClusterDetailInfo | null = null;
+
+  for (const clusterType of clusterTypes) {
+    const result = await ocpCallTool("get_cluster_info", {
+      cluster_id: query,
+      cluster_type: clusterType,
+    });
+    if (!result.isError && result.structuredContent) {
+      detail = result.structuredContent as ClusterDetailInfo;
+      break;
+    }
+  }
+
+  ocpUiState.isLookingUp = false;
+
+  if (detail) {
+    ocpUiState.selectedClusterId = detail.id;
+    ocpUiState.clusterDetail = detail;
+    ocpUiState.dataSource = (detail.dataSource as DataSource) ?? "live";
+    setOcpStatus(`Found cluster: ${detail.name}`, "success");
+  } else {
+    ocpUiState.lookupError = `No cluster found with ID "${query}" on either backend.`;
+  }
+
   ocpRender();
 };
 
@@ -448,12 +493,18 @@ const ocpRender = () => {
       onNavigateCreator: () => setOcpAdminStep("cluster_creator"),
       onLoadClusters,
       onSelectCluster,
+      onSearchQueryChange,
+      onLookupCluster,
+      searchQuery: ocpUiState.searchQuery,
+      isLookingUp: ocpUiState.isLookingUp,
+      lookupError: ocpUiState.lookupError,
       onBackToInventory,
       onLoadEvents,
       onGetLogsUrl,
       onCreatorFieldChange,
       onCreateCluster,
       onNavigateSetup,
+      onSetupCluster: onNavigateSetup,
       setupClusterId: ocpUiState.setupClusterId,
       hosts: ocpUiState.hosts,
       isLoadingHosts: ocpUiState.isLoadingHosts,
