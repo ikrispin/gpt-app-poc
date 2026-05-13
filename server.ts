@@ -692,31 +692,32 @@ registerAppTool(
 );
 
 
-const registerUiResource = (uri: string, loadHtml: () => Promise<string>) => registerAppResource(
-  server,
-  uri,
-  uri,
-  { mimeType: RESOURCE_MIME_TYPE },
-  async () => {
-    const html = await loadHtml();
-    const widgetDomain = process.env.WIDGET_DOMAIN?.trim() || DEFAULT_WIDGET_DOMAIN;
-    return {
-      contents: [
-        {
-          uri,
-          mimeType: RESOURCE_MIME_TYPE,
-          _meta: {
-            "openai/widgetDomain": widgetDomain,
-            "openai/widgetCSP": {
-              connect_domains: [widgetDomain],
+const registerUiResource = (uri: string, loadHtml: () => Promise<string>) =>
+  registerAppResource(
+    server,
+    uri,
+    uri,
+    { mimeType: RESOURCE_MIME_TYPE },
+    async () => {
+      const html = await loadHtml();
+      const widgetDomain = process.env.WIDGET_DOMAIN?.trim() || DEFAULT_WIDGET_DOMAIN;
+      return {
+        contents: [
+          {
+            uri,
+            mimeType: RESOURCE_MIME_TYPE,
+            _meta: {
+              "openai/widgetDomain": widgetDomain,
+              "openai/widgetCSP": {
+                connect_domains: [widgetDomain],
+              },
             },
+            text: html,
           },
-          text: html,
-        },
-      ],
-    };
-  },
-);
+        ],
+      };
+    },
+  );
 
 registerUiResource(inventoryResourceUri, loadInventoryHtml);
 registerUiResource(creatorResourceUri, loadCreatorHtml);
