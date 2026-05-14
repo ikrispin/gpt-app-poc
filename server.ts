@@ -128,6 +128,9 @@ const inventoryResourceUri = widgetResourceVersion
 const creatorResourceUri = widgetResourceVersion
   ? `ui://ocp-admin/creator.html?v=${encodeURIComponent(widgetResourceVersion)}`
   : "ui://ocp-admin/creator.html";
+const setupResourceUri = widgetResourceVersion
+  ? `ui://ocp-admin/setup.html?v=${encodeURIComponent(widgetResourceVersion)}`
+  : "ui://ocp-admin/setup.html";
 const widgetBuildId = widgetResourceVersion || `build-${Date.now()}`;
 const DEFAULT_WIDGET_DOMAIN = "https://leisured-carina-unpromotable.ngrok-free.dev";
 
@@ -162,6 +165,7 @@ const injectWidgetMeta = (html: string, workflowId: string): string => {
 
 const loadInventoryHtml = async (): Promise<string> => injectWidgetMeta(await loadRawHtml("mcp-app-inventory.html"), "inventory");
 const loadCreatorHtml = async (): Promise<string> => injectWidgetMeta(await loadRawHtml("mcp-app-creator.html"), "creator");
+const loadSetupHtml = async (): Promise<string> => injectWidgetMeta(await loadRawHtml("mcp-app-setup.html"), "setup");
 
 
 
@@ -547,8 +551,8 @@ registerAppTool(
     }),
     annotations: { readOnlyHint: true, openWorldHint: false, destructiveHint: false },
     _meta: {
-      ui: { resourceUri: creatorResourceUri },
-      "openai/outputTemplate": creatorResourceUri,
+      ui: { resourceUri: setupResourceUri },
+      "openai/outputTemplate": setupResourceUri,
       "openai/widgetAccessible": true,
     },
   },
@@ -591,8 +595,8 @@ registerAppTool(
     }),
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
     _meta: {
-      ui: { resourceUri: creatorResourceUri },
-      "openai/outputTemplate": creatorResourceUri,
+      ui: { resourceUri: setupResourceUri },
+      "openai/outputTemplate": setupResourceUri,
       "openai/widgetAccessible": true,
     },
   },
@@ -627,8 +631,8 @@ registerAppTool(
     }),
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
     _meta: {
-      ui: { resourceUri: creatorResourceUri },
-      "openai/outputTemplate": creatorResourceUri,
+      ui: { resourceUri: setupResourceUri },
+      "openai/outputTemplate": setupResourceUri,
       "openai/widgetAccessible": true,
     },
   },
@@ -660,8 +664,8 @@ registerAppTool(
     }),
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: true },
     _meta: {
-      ui: { resourceUri: creatorResourceUri },
-      "openai/outputTemplate": creatorResourceUri,
+      ui: { resourceUri: setupResourceUri },
+      "openai/outputTemplate": setupResourceUri,
       "openai/widgetAccessible": true,
     },
   },
@@ -688,8 +692,8 @@ registerAppTool(
     }),
     annotations: { readOnlyHint: true, openWorldHint: false, destructiveHint: false },
     _meta: {
-      ui: { resourceUri: creatorResourceUri },
-      "openai/outputTemplate": creatorResourceUri,
+      ui: { resourceUri: setupResourceUri },
+      "openai/outputTemplate": setupResourceUri,
       "openai/widgetAccessible": true,
     },
   },
@@ -744,6 +748,7 @@ const registerUiResource = (uri: string, loadHtml: () => Promise<string>) =>
 
 registerUiResource(inventoryResourceUri, loadInventoryHtml);
 registerUiResource(creatorResourceUri, loadCreatorHtml);
+registerUiResource(setupResourceUri, loadSetupHtml);
 
 export const createApp = () => {
   const app = express();
